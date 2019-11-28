@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:map="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:name="com.google.android.gms.maps.SupportMapFragment"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MapsActivity" >
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#5DA4BE"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        map:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+
+        <TextView
+            android:id="@+id/toolbar_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="left"
+            android:text="Map Test     "
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/toolbar_mode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            android:text="MODE 1"
+            android:textColor="#000000"
+            android:textSize="20sp" />
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="490dp">
+
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <fragment
+                android:id="@+id/map"
+                android:name="com.google.android.gms.maps.SupportMapFragment"
+                android:layout_width="match_parent"
+                android:layout_height="495dp"
+                tools:context=".MapsActivity" />
+
+            <ImageButton
+                android:id="@+id/btn_save"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="360dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="25dp"
+                android:background="@drawable/save"
+                android:text="SAVE" />
+
+            <ImageButton
+                android:id="@+id/bt_position"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="420dp"
+                android:background="@drawable/position"
+                />
+
+            <Button
+                android:id="@+id/btn_zoomIn"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="220dp"
+                android:background="#FFFFFF"
+                android:text="+"
+                android:textSize="24sp"
+               />
+
+            <Button
+                android:id="@+id/btn_zoomOut"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="275dp"
+                android:background="#FFFFFF"
+                android:text="-"
+                android:textSize="24sp"
+                />
+
+
+
+
+        </RelativeLayout>
+    </FrameLayout>
+
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_GpsEnable"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GPS ENABLE  :  " />
+
+            <TextView
+                android:id="@+id/tv_NetWorkEnable"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NETWORK ENABLE : " />
+
+            <TextView
+                android:id="@+id/tv_PassiveEnable"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PASSIVE ENABLE : " />
+
+            <TextView
+                android:id="@+id/tv_GpsLocation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GPS Location : " />
+
+            <TextView
+                android:id="@+id/tv_NetWorkLocation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NETWORK Location : " />
+
+            <TextView
+                android:id="@+id/tv_PassiveLocation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PASSIVE Location : " />
+
+            <TextView
+                android:id="@+id/tv_LocationProvider"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Location Provider : " />
+
+            <TextView
+                android:id="@+id/tv_LocationAcc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Location Accuracy : " />
+
+            <TextView
+                android:id="@+id/tv_BestProvider"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Best Provider : " />
+
+
+        </LinearLayout>
+
+
+
+
+
+
+
+</LinearLayout>
