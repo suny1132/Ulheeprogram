@@ -13,6 +13,10 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -45,28 +49,30 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,LocationListener {
+
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,LocationListener, SensorEventListener {
 
     private GoogleMap mMap;
     private Marker currentMarker = null;
     private LocationManager locationManager;
-    private List<String> listProviders;
+
+    private static SensorManager mSensorManager;
+    private Sensor mAccelerometer;
+    private Sensor mGyrometer;
+    private Sensor mPressure;
+
+    private float[] mLastAccelerometer = new float[3];
+    private float[] mLastGyrometer = new float[3];
 
     LatLng currentPosition;
-    LatLng mode_2_Position;
-    LatLng mode_3_Position;
     LatLng prePosition;
     LatLng LastPosition;
 
-    private TextView txtGPSEnable,txtNWEnable,txtPSEnalbe,txtGPSLocation,txtNWLocation,txtPSLocation,txtLocationProv,txtLocationAcc,txtMode,txtBestProvider; //
+    private TextView txtGPSLocation,txtLocationAcc,txtMode,txtAcc,txtGyro,txtPress,txtOnGps; //
     private String TAG = "LocationProvider";
 
     private int MIN_UPDATE_MILLIS = 2000;
@@ -74,8 +80,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private int ZoomLevel = 16;
     private Button btnZin, btnZOut; //줌 버튼 사용
-
-    private View mLayout;  // Snackbar 사용하기 위해서는 View가 필요합니다.
 
     private Toolbar mToolbar; //툴바사용
 
@@ -90,7 +94,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean flag = true;
 
-    private double MIN_ACCURACY = 3.85;
     private Location pre_GPS_Location;
     private Location cur_GPS_Location;
     private  boolean count = true;
@@ -114,30 +117,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //----------Map--------//
 
         //----------TextView--------//
-        txtGPSEnable = (TextView) findViewById(R.id.tv_GpsEnable);
-        txtNWEnable  = (TextView) findViewById(R.id.tv_NetWorkEnable);
-        txtPSEnalbe  = (TextView) findViewById(R.id.tv_PassiveEnable);
         txtGPSLocation  = (TextView) findViewById(R.id.tv_GpsLocation);
-        txtNWLocation = (TextView) findViewById(R.id.tv_NetWorkLocation);
-        txtPSLocation = (TextView) findViewById(R.id.tv_PassiveLocation);
-        txtLocationProv = (TextView) findViewById(R.id.tv_LocationProvider);
         txtLocationAcc = (TextView) findViewById(R.id.tv_LocationAcc);
         txtMode = (TextView) findViewById(R.id.toolbar_mode); //현재 모드 보여주기
-        txtBestProvider = (TextView) findViewById(R.id.tv_BestProvider);
+        txtOnGps = (TextView) findViewById(R.id.tv_Ongps);
+        txtAcc = (TextView) findViewById(R.id.tv_Acc);
+        txtGyro = (TextView) findViewById(R.id.tv_Gyro);
+        txtPress = (TextView) findViewById(R.id.tv_Press);
         //----------TextView--------//
 
         //----------Toolbar--------//
         mToolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(mToolbar);
         getSupportActionBar().setDisplayShowTitleEnabled(false); //기존 툴바 타이틀 보이는지 여부
+        //----------Toolbar--------//
 
+        //----------Button--------//
         mPositionButton = (ImageButton) findViewById(R.id.bt_position); //현재 위치로 돌아오는 버튼
-
         btnZin = (Button) findViewById(R.id.btn_zoomIn); //줌 인 버튼
         btnZOut = (Button) findViewById(R.id.btn_zoomOut); //줌 아웃 버튼
-
         btnSave = (ImageButton) findViewById(R.id.btn_save); //데이터 저장 버튼 테스트
+        //----------Button--------//
 
+        //----------Sensor--------//
+        mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mGyrometer = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
+        //----------Sensor--------//
 
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -198,48 +205,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             txtGPSLocation.setText("GPS Location : " + Double.toString(lat) + "," + Double.toString(lng));
             LastPosition  = new LatLng(lat,lng);
         }
-        lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER); //NETWORK 위치제공자
-        if (lastKnownLocation != null) {
-            double lng = lastKnownLocation.getLongitude();
-            double lat = lastKnownLocation.getLatitude();
-            Log.d(TAG, "longtitude=" + lng + ", latitude=" + lat);
-            txtNWLocation.setText("NETWORK Location : " + Double.toString(lat) + "," + Double.toString(lng));
-        }
-        lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER); //PASSIVE 위치제공자
-        if (lastKnownLocation != null) {
-            double lng = lastKnownLocation.getLongitude();
-            double lat = lastKnownLocation.getLatitude();
-            Log.d(TAG, "longtitude=" + lng + ", latitude=" + lat);
-            txtPSLocation.setText("PASSIVE Location : " + Double.toString(lat) + ","+ Double.toString(lng));
-        }
-
-        listProviders = locationManager.getAllProviders();
-        boolean [] isEnable = new boolean[3];
-
-        for(int i=0; i<listProviders.size();i++)
-        {
-            if(listProviders.get(i).equals(LocationManager.GPS_PROVIDER))
-            {
-                isEnable[0] = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
-                txtGPSEnable.setText("GPS Enable : " + String.valueOf(isEnable[0]));
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
-            }
-            else if(listProviders.get(i).equals(LocationManager.NETWORK_PROVIDER)) {
-                isEnable[1] = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-                txtNWEnable.setText("NETWORK Enable : " + String.valueOf(isEnable[1]));
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS,this);
-            }
-            else if(listProviders.get(i).equals(LocationManager.PASSIVE_PROVIDER)) {
-                isEnable[2] = locationManager.isProviderEnabled(LocationManager.PASSIVE_PROVIDER);
-                txtPSEnalbe.setText("PASSIVE Enable : " + String.valueOf(isEnable[2]));
-                locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
-            }
-
-        }
-
-        Log.d(TAG, listProviders.get(0) + '/' + String.valueOf(isEnable[0]));
-        Log.d(TAG, listProviders.get(1) + '/' + String.valueOf(isEnable[1]));
-        Log.d(TAG, listProviders.get(2) + '/' + String.valueOf(isEnable[2]));
 
 
     }
@@ -375,8 +340,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             DEFAULT_LOCATION = new LatLng(37.56, 126.97);
         }//디폴트 위치, Seoul
 
-
-
         if (currentMarker != null) currentMarker.remove();
 
         MarkerOptions markerOptions = new MarkerOptions();
@@ -399,28 +362,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         double latitude = 0.;
         double longitude = 0.;
 
-        double GPS_lat = 0;
-        double GPS_lng = 0;
-        float GPS_a = 0;
+
 
         boolean onGPS = false;
-
-        txtBestProvider.setText("BestProvider : " + String.valueOf(onGPS));
-
-
-        txtLocationProv.setText("Location Prov : " + location.getProvider());
         txtLocationAcc.setText("Location Acc : " + location.getAccuracy());
         if(flag) {
             if (location.getProvider().equals(LocationManager.GPS_PROVIDER) && mode1) {
                 cur_GPS_Location = location;
                 latitude = location.getLatitude();
                 longitude = location.getLongitude();
-
-                GPS_lat = latitude;
-                GPS_lng = longitude;
-                GPS_a = location.getAccuracy();
                 if(pre_GPS_Location != null) {
                     onGPS = isBetterLocation(pre_GPS_Location,cur_GPS_Location);
+                    txtOnGps.setText("OnGPS : " + String.valueOf(onGPS));
                     if(save_mode) WriteTextFile(foldername, filename,String.valueOf(cur_GPS_Location.getTime()) + "," + String.valueOf(cur_GPS_Location.getAccuracy()) + "," +
                             String.valueOf(pre_GPS_Location.getTime()) + "," + String.valueOf(pre_GPS_Location.getAccuracy())
                             +"," + String.valueOf(sum_acc) +"," + String.valueOf(MIN_sum_acc) +"," + String.valueOf(res_acc) + "," + String.valueOf(onGPS) +"\n");
@@ -429,30 +382,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if(onGPS) onMapPosition(latitude, longitude, 1);
                 else onMapPosition(latitude, longitude, 2);
                 txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-                // if(save_mode) WriteTextFile(foldername, filename,String.valueOf(GPS_lat) + "," + String.valueOf(GPS_lng) + "\n");
-//                if(save_mode) WriteTextFile(foldername, filename,String.valueOf(GPS_lat) + "," + String.valueOf(GPS_lng) + "," + String.valueOf(onGPS) +"," +String.valueOf(GPS_a)
-//                        +"," + String.valueOf(sum_acc)+ "\n");
+
             }
 
-//            if (location.getProvider().equals(LocationManager.NETWORK_PROVIDER) && mode2) {
-//                latitude = location.getLatitude();
-//                longitude = location.getLongitude();
-//                txtNWLocation.setText("NETWORK Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-//                //onMapPosition(latitude, longitude, 2);
-//                Log.d(TAG, "onLocationChanged : NETWORK");
-//                Log.d(TAG, "onLocationChanged : NETWORK Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-//            }
-//            if (location.getProvider().equals(LocationManager.PASSIVE_PROVIDER) && mode3) {
-//                latitude = location.getLatitude();
-//                longitude = location.getLongitude();
-//                txtPSLocation.setText("PASSIVE Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-//                onMapPosition(latitude, longitude, 3);
-////            Log.d(TAG, "onLocationChanged : PASSIVE");
-//            }
-
             flag = false; //한번만 들어오게 하는 flag
-            //txtBestProvider.setText("BestProvider : " + getBestProvider());
-
         }
         else flag = true;
 
@@ -580,6 +513,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onPause() {
         super.onPause();
         locationManager.removeUpdates(this);
+        mSensorManager.unregisterListener(this);
     }
 
     @Override
@@ -591,42 +525,48 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
         locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
-    }
 
-    public String getBestProvider()
-    {
-        String bestProvider = "";
-        Criteria criteria = new Criteria();
-        criteria.setAccuracy(Criteria.ACCURACY_MEDIUM);
-        criteria.setPowerRequirement(Criteria.POWER_MEDIUM);
-        criteria.setAltitudeRequired(false);
-        criteria.setBearingRequired(false);
-        criteria.setSpeedRequired(false);
-        criteria.setCostAllowed(true);
-        bestProvider = locationManager.getBestProvider(criteria,true);
-
-        return bestProvider;
+        mSensorManager.registerListener(this,mAccelerometer,SensorManager.SENSOR_DELAY_GAME);
+        mSensorManager.registerListener(this,mGyrometer,SensorManager.SENSOR_DELAY_GAME);
+        mSensorManager.registerListener(this,mPressure,SensorManager.SENSOR_DELAY_GAME);
     }
 
     public boolean isBetterLocation(Location prelocation,Location currentLocation)
     {
         //현재 수신된 위치 데이터의 제공자가 GPS 인지 아닌지 판단 아니면 false
         //이전 데이터와 현재 데이터의 시간차이를 비교하여 업데이트 시간과 비교
-        long dTime = currentLocation.getTime() - prelocation.getTime();
-        boolean Time_TF;
-
-        if(dTime >= MIN_UPDATE_MILLIS) return false;
-        else {
             //데이터의 정확도를 받아와 최소값을 판단하여 비교
-            float accuracyDelta = (currentLocation.getAccuracy() - prelocation.getAccuracy());
-            sum_acc = sum_acc + accuracyDelta;
-            if (sum_acc < MIN_sum_acc) MIN_sum_acc = sum_acc;
-            res_acc = sum_acc - MIN_sum_acc;
+        float accuracyDelta = (currentLocation.getAccuracy() - prelocation.getAccuracy());
+        sum_acc = sum_acc + accuracyDelta;
+        if (sum_acc < MIN_sum_acc) MIN_sum_acc = sum_acc;
+        res_acc = sum_acc - MIN_sum_acc;
+        if (res_acc > 3) return false; //5퍼센트 이내
+        else return true;
 
-            if (res_acc > 3) return false; //5퍼센트 이내
-            else return true;
+
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if(event.sensor == mAccelerometer) {
+            System.arraycopy(event.values,0,mLastAccelerometer,0,event.values.length);
+            txtAcc.setText( "Ax : " + String.valueOf(event.values[0]) +
+                            "Ay : " + String.valueOf(event.values[1]) +
+                            "Az : " + String.valueOf(event.values[2]) );
+
+        } else if(event.sensor == mGyrometer) {
+            System.arraycopy(event.values,0,mLastGyrometer,0,event.values.length);
+            txtGyro.setText( "Gx : " + String.valueOf(event.values[0]) +
+                    "Gy : " + String.valueOf(event.values[1]) +
+                    "Gz : " + String.valueOf(event.values[2]) );
+        } else if(event.sensor == mPressure){
+            txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
         }
 
     }
 
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
 }

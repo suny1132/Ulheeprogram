@@ -110,23 +110,6 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tv_GpsEnable"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="GPS ENABLE  :  " />
-
-            <TextView
-                android:id="@+id/tv_NetWorkEnable"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="NETWORK ENABLE : " />
-
-            <TextView
-                android:id="@+id/tv_PassiveEnable"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="PASSIVE ENABLE : " />
 
             <TextView
                 android:id="@+id/tv_GpsLocation"
@@ -135,34 +118,32 @@
                 android:text="GPS Location : " />
 
             <TextView
-                android:id="@+id/tv_NetWorkLocation"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="NETWORK Location : " />
-
-            <TextView
-                android:id="@+id/tv_PassiveLocation"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="PASSIVE Location : " />
-
-            <TextView
-                android:id="@+id/tv_LocationProvider"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Location Provider : " />
-
-            <TextView
                 android:id="@+id/tv_LocationAcc"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Location Accuracy : " />
 
             <TextView
-                android:id="@+id/tv_BestProvider"
+                android:id="@+id/tv_Ongps"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Best Provider : " />
+                android:text="OnGPS : " />
+            <TextView
+                android:id="@+id/tv_Acc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="가속도센서 : " />
+
+            <TextView
+                android:id="@+id/tv_Gyro"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="자이로센서 : " />
+            <TextView
+                android:id="@+id/tv_Press"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="기압센서 : " />
 
 
         </LinearLayout>
