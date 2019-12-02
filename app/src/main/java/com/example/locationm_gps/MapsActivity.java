@@ -23,6 +23,8 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -75,8 +77,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private TextView txtGPSLocation,txtLocationAcc,txtMode,txtAcc,txtGyro,txtPress,txtOnGps; //
     private String TAG = "LocationProvider";
 
-    private int MIN_UPDATE_MILLIS = 2000;
-    private int MIN_UPDATE_MITERS = 1;
+    private int MIN_UPDATE_MILLIS = 1000;
+    private int MIN_UPDATE_MITERS = 0;
 
     private int ZoomLevel = 16;
     private Button btnZin, btnZOut; //줌 버튼 사용
@@ -97,12 +99,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Location pre_GPS_Location;
     private Location cur_GPS_Location;
     private  boolean count = true;
+    private boolean onGPS = false;
 
     private float sum_acc = 0;
-    private float MIN_sum_acc = 0;
+    private float MIN_sum_acc = 5;
     private float res_acc = 0;
+    private double timestamp;
+    private double dt;
+    private double yaw;
+    private double RtoD = 180 / Math.PI;
+    private static final float NS2S = 1.0f/1000000000.0f; //나노세컨드 -> 세컨드
 
-
+    Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -201,10 +209,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (lastKnownLocation != null) {
             double lng = lastKnownLocation.getLongitude();
             double lat = lastKnownLocation.getLatitude();
+            cur_GPS_Location = lastKnownLocation;
             Log.d(TAG, "longtitude=" + lng + ", latitude=" + lat);
             txtGPSLocation.setText("GPS Location : " + Double.toString(lat) + "," + Double.toString(lng));
             LastPosition  = new LatLng(lat,lng);
         }
+
+//        handler = new Handler(){
+//            @Override
+//            public void handleMessage(Message msg) {
+//                handler.sendEmptyMessageDelayed(0,1000);
+//                if(cur_GPS_Location != null) Log.d(TAG,"Timer : " + String.valueOf(cur_GPS_Location) + String.valueOf(onGPS));
+//                double latitude = cur_GPS_Location.getLatitude();
+//                double longitude = cur_GPS_Location.getLongitude();
+//
+//                if(onGPS) onMapPosition(latitude, longitude, 1);
+//                else onMapPosition(latitude, longitude, 2);
+//
+//                if(save_mode) WriteTextFile(foldername, filename,String.valueOf(cur_GPS_Location.getLatitude()) + "," + String.valueOf(cur_GPS_Location.getLongitude()) + "," +
+//                        String.valueOf(System.currentTimeMillis()) + "," + String.valueOf(onGPS) +"\n");
+//            }
+//        };
+//        handler.sendEmptyMessage(0);
+
 
 
     }
@@ -257,7 +284,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 break;
             case R.id.mode_1:
                 Toast.makeText(getApplicationContext(),"mode1",Toast.LENGTH_LONG).show();
-                txtMode.setText("MODE 1");
+                txtMode.setText("MODE_AUTO");
                 txtMode.setTextColor(Color.BLACK);
                 mode1 = true;
                 mode2 = false;
@@ -265,7 +292,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 break;
             case R.id.mode_2:
                 Toast.makeText(getApplicationContext(),"mode2",Toast.LENGTH_LONG).show();
-                txtMode.setText("MODE 2");
+                txtMode.setText("MODE_GPS");
                 txtMode.setTextColor(Color.BLUE);
                 mode1 = false;
                 mode2 = true;
@@ -273,7 +300,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 break;
             case R.id.mode_3:
                 Toast.makeText(getApplicationContext(),"mode3",Toast.LENGTH_LONG).show();
-                txtMode.setText("MODE 3");
+                txtMode.setText("MODE_INS");
                 txtMode.setTextColor(Color.GREEN);
                 mode1 = false;
                 mode2 = false;
@@ -358,21 +385,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onLocationChanged(Location location) {
         // Log.d(TAG, "onLocationChanged");
         if(location == null) return;
-
         double latitude = 0.;
         double longitude = 0.;
 
-
-
-        boolean onGPS = false;
         txtLocationAcc.setText("Location Acc : " + location.getAccuracy());
         if(flag) {
             if (location.getProvider().equals(LocationManager.GPS_PROVIDER) && mode1) {
                 cur_GPS_Location = location;
                 latitude = location.getLatitude();
                 longitude = location.getLongitude();
+                onGPS = isBetterLocation(cur_GPS_Location);
                 if(pre_GPS_Location != null) {
-                    onGPS = isBetterLocation(pre_GPS_Location,cur_GPS_Location);
                     txtOnGps.setText("OnGPS : " + String.valueOf(onGPS));
                     if(save_mode) WriteTextFile(foldername, filename,String.valueOf(cur_GPS_Location.getTime()) + "," + String.valueOf(cur_GPS_Location.getAccuracy()) + "," +
                             String.valueOf(pre_GPS_Location.getTime()) + "," + String.valueOf(pre_GPS_Location.getAccuracy())
@@ -382,7 +405,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if(onGPS) onMapPosition(latitude, longitude, 1);
                 else onMapPosition(latitude, longitude, 2);
                 txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
+            }
 
+            if (location.getProvider().equals(LocationManager.GPS_PROVIDER) && mode2) {    //GPS 만 사용하기
+                cur_GPS_Location = location;
+                latitude = location.getLatitude();
+                longitude = location.getLongitude();
+                onMapPosition(latitude, longitude, 1);
+                txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
             }
 
             flag = false; //한번만 들어오게 하는 flag
@@ -531,18 +561,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mSensorManager.registerListener(this,mPressure,SensorManager.SENSOR_DELAY_GAME);
     }
 
-    public boolean isBetterLocation(Location prelocation,Location currentLocation)
+//    public boolean isBetterLocation(Location prelocation,Location currentLocation)
+    public boolean isBetterLocation(Location currentLocation)
     {
         //현재 수신된 위치 데이터의 제공자가 GPS 인지 아닌지 판단 아니면 false
         //이전 데이터와 현재 데이터의 시간차이를 비교하여 업데이트 시간과 비교
             //데이터의 정확도를 받아와 최소값을 판단하여 비교
-        float accuracyDelta = (currentLocation.getAccuracy() - prelocation.getAccuracy());
-        sum_acc = sum_acc + accuracyDelta;
-        if (sum_acc < MIN_sum_acc) MIN_sum_acc = sum_acc;
-        res_acc = sum_acc - MIN_sum_acc;
-        if (res_acc > 3) return false; //5퍼센트 이내
+        float accuracyData = currentLocation.getAccuracy();
+        int threshold = 3;
+
+        if (accuracyData < MIN_sum_acc) MIN_sum_acc = accuracyData;
+        res_acc = MIN_sum_acc + threshold ;
+        if (res_acc < accuracyData) return false;
         else return true;
 
+//        float accuracyDelta = (currentLocation.getAccuracy() - prelocation.getAccuracy());
+//        sum_acc = sum_acc + accuracyDelta;
+//        if (sum_acc < MIN_sum_acc) MIN_sum_acc = sum_acc;
+//        res_acc = sum_acc - MIN_sum_acc;
+//        if (res_acc > 3) return false; //5퍼센트 이내
+//        else return true;
 
     }
 
@@ -555,10 +593,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             "Az : " + String.valueOf(event.values[2]) );
 
         } else if(event.sensor == mGyrometer) {
+            double gyroZ;
             System.arraycopy(event.values,0,mLastGyrometer,0,event.values.length);
-            txtGyro.setText( "Gx : " + String.valueOf(event.values[0]) +
-                    "Gy : " + String.valueOf(event.values[1]) +
-                    "Gz : " + String.valueOf(event.values[2]) );
+
+            gyroZ = event.values[2];
+            dt = (event.timestamp - timestamp) * NS2S;
+            timestamp = event.timestamp;
+
+            if(dt - timestamp*NS2S != 0) {
+
+                yaw = yaw + gyroZ*dt;
+                txtGyro.setText( " Gz : " + String.valueOf(event.values[2]) + "yaw : " + String.valueOf(yaw*RtoD) );
+            }
         } else if(event.sensor == mPressure){
             txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
         }
