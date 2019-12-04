@@ -104,13 +104,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private float sum_acc = 0;
     private float MIN_sum_acc = 5;
     private float res_acc = 0;
-    private double timestamp;
-    private double dt;
-    private double yaw;
+    private double timestamp_gyro;
+    private double timestamp_acc;
+    private double dt_gyro;
+    private double dt_acc;
+    private double dt_all_gyro = 0;
+    private double dt_all_acc = 0;
+    private double roll;
+    private double pitch;
+
+
+    private double cur_gyro_y = 0;
+    private double cur_acc_z = 0;
+    private double cur_acc_z_V;
+    private double cur_acc_z_D;
+    private double all_D = 0;
+
+    private double pre_acc_z = 0;
+    private double pre_acc_z_V = 0;
+    private double ave_acc_z = 0;
+    private double ave_acc_z_V = 0;
+    private int acc_count = 0;
+    private int gyro_count = 0;
+
     private double RtoD = 180 / Math.PI;
     private static final float NS2S = 1.0f/1000000000.0f; //나노세컨드 -> 세컨드
 
     Handler handler;
+    coordinate_trans Coor = new coordinate_trans();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,6 +144,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
         //----------Map--------//
+
+
+
 
         //----------TextView--------//
         txtGPSLocation  = (TextView) findViewById(R.id.tv_GpsLocation);
@@ -305,6 +329,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mode1 = false;
                 mode2 = false;
                 mode3 = true;
+
+                Init_SensorData();
+
                 break;
         }
         return false;
@@ -403,19 +430,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
                 pre_GPS_Location = cur_GPS_Location;
                 if(onGPS) onMapPosition(latitude, longitude, 1);
-                else onMapPosition(latitude, longitude, 2);
+                else {
+                    //Dead reckoning
+                    Location Ref_GPS_Location = pre_GPS_Location;
+                    double[] Ref_xyz = {0,0,0};
+                    if(Ref_GPS_Location != null) //이 위치를 기준으로 D.R
+                    {
+                        Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(),Ref_GPS_Location.getLongitude(),0);
+
+
+
+
+                    }
+
+
+
+
+                }onMapPosition(latitude, longitude, 2);
                 txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
             }
 
             if (location.getProvider().equals(LocationManager.GPS_PROVIDER) && mode2) {    //GPS 만 사용하기
-                cur_GPS_Location = location;
-                latitude = location.getLatitude();
-                longitude = location.getLongitude();
-                onMapPosition(latitude, longitude, 1);
-                txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-            }
+            cur_GPS_Location = location;
+            latitude = location.getLatitude();
+            longitude = location.getLongitude();
+            onMapPosition(latitude, longitude, 1);
+            txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
+        }
 
-            flag = false; //한번만 들어오게 하는 flag
+        flag = false; //한번만 들어오게 하는 flag
         }
         else flag = true;
 
@@ -575,38 +618,77 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (res_acc < accuracyData) return false;
         else return true;
 
-//        float accuracyDelta = (currentLocation.getAccuracy() - prelocation.getAccuracy());
-//        sum_acc = sum_acc + accuracyDelta;
-//        if (sum_acc < MIN_sum_acc) MIN_sum_acc = sum_acc;
-//        res_acc = sum_acc - MIN_sum_acc;
-//        if (res_acc > 3) return false; //5퍼센트 이내
-//        else return true;
-
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        double accX = 0;
+        double accY = 0;
+
         if(event.sensor == mAccelerometer) {
-            System.arraycopy(event.values,0,mLastAccelerometer,0,event.values.length);
-            txtAcc.setText( "Ax : " + String.valueOf(event.values[0]) +
-                            "Ay : " + String.valueOf(event.values[1]) +
-                            "Az : " + String.valueOf(event.values[2]) );
+            System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
 
-        } else if(event.sensor == mGyrometer) {
-            double gyroZ;
-            System.arraycopy(event.values,0,mLastGyrometer,0,event.values.length);
+//            accX = event.values[0];
+//            accY = event.values[1];
+            if (!onGPS) {
+                if (acc_count < 5) { //dt = 0.1초
+                    cur_acc_z = cur_acc_z + event.values[2];
+                    dt_acc = (event.timestamp - timestamp_acc) * NS2S;
+                    dt_all_acc = dt_all_acc + dt_acc;
+                    timestamp_acc = event.timestamp;
+                    acc_count++;
+                } else {
+                    cur_acc_z = cur_acc_z / 5;
+                    if (dt_all_acc >= 0.1) {
+                        ave_acc_z = (pre_acc_z + cur_acc_z) / 2;
+                        cur_acc_z_V = pre_acc_z_V + ave_acc_z * 0.1;
+                        ave_acc_z_V = (pre_acc_z_V + cur_acc_z_V) / 2;
+                        cur_acc_z_D = ave_acc_z_V * 0.1 + 0.5 * ave_acc_z * 0.1 * 0.1;
 
-            gyroZ = event.values[2];
-            dt = (event.timestamp - timestamp) * NS2S;
-            timestamp = event.timestamp;
 
-            if(dt - timestamp*NS2S != 0) {
+                        pre_acc_z = cur_acc_z;
+                        pre_acc_z_V = cur_acc_z_V;
 
-                yaw = yaw + gyroZ*dt;
-                txtGyro.setText( " Gz : " + String.valueOf(event.values[2]) + "yaw : " + String.valueOf(yaw*RtoD) );
+                        all_D = all_D + cur_acc_z_D;
+
+                        txtAcc.setText(" Dz : " + String.valueOf(all_D) + "m" + "  dt : " + String.valueOf(dt_all_acc));
+//                  WriteTextFile(foldername, filename,  String.valueOf(accZ) + ","+ String.valueOf(accY) + ","+ String.valueOf(Math.cos(roll))
+//                        + "," + String.valueOf(Math.sin(roll)) + "," + String.valueOf(dt_acc)  + "\n");
+                        cur_acc_z = 0;
+                        acc_count = 0;
+                        dt_all_acc = 0;
+                    }
+
+
+                }
+
             }
-        } else if(event.sensor == mPressure){
-            txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
+        }
+        else if (event.sensor == mGyrometer) {
+            System.arraycopy(event.values, 0, mLastGyrometer, 0, event.values.length);
+            if(!onGPS) {
+                if (gyro_count < 5) {
+                    cur_gyro_y = cur_gyro_y + event.values[1];
+                    dt_gyro = (event.timestamp - timestamp_gyro) * NS2S;
+                    dt_all_gyro = dt_all_gyro + dt_gyro;
+                    timestamp_gyro = event.timestamp;
+                    gyro_count++;
+                } else {
+                    cur_gyro_y = cur_gyro_y / 5;
+                    if (dt_all_gyro > 0.1) {
+                        pitch = pitch + cur_gyro_y * 0.1;
+                        txtGyro.setText(" Gy : " + String.valueOf(roll * RtoD) + "yaw : " + String.valueOf(pitch * RtoD));
+
+                        cur_gyro_y = 0;
+                        gyro_count = 0;
+                        dt_all_gyro = 0;
+                        }
+                    }
+
+                }
+            }
+        else if (event.sensor == mPressure) {
+        txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
         }
 
     }
@@ -615,4 +697,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
     }
+
+    public void Init_SensorData()
+    {
+        //모드 변경시 초기화
+        dt_all_gyro = 0;
+        dt_all_acc = 0;
+        pitch = 0;
+        cur_gyro_y = 0;
+        cur_acc_z = 0;
+        cur_acc_z_V = 0;
+        cur_acc_z_D = 0;
+        all_D = 0;
+        pre_acc_z = 0;
+        pre_acc_z_V = 0;
+        ave_acc_z = 0;
+        ave_acc_z_V = 0;
+        acc_count = 0;
+        gyro_count = 0;
+
+    }
+
 }

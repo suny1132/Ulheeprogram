@@ -16,7 +16,7 @@
                 android:title="MODE_GPS" />
             <item
                 android:id="@+id/mode_3"
-                android:title="MODE_NETWORK" />
+                android:title="MODE_INS" />
 
         </menu>
 
