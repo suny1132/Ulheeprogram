@@ -132,7 +132,7 @@ public class coordinate_trans {
     }
 
 
-    public double[] enu2xyz(double[] enu, double[] xyz)
+    public double[] enu2xyz(double[] enu, double[] orgxyz)
     {
         //%ENU2XYZ	Convert from rectangular local-level-tangent
         //            %               ('East'-'North'-Up) coordinates to WGS-84
@@ -160,8 +160,10 @@ public class coordinate_trans {
         //            %	Copyright (c) 1996 by GPSoft
         //%	All Rights Reserved.
         double[] tmpenu = enu;
-        double[] tmpxyz = xyz;
+        double[] tmpxyz = orgxyz;
         double[] orgllh = xyz2llh(tmpxyz);
+        double[] xyz = {0,0,0};
+        double[] difxyz ={0,0,0};
 
         double phi = orgllh[0];
         double lambda = orgllh[1];
@@ -171,12 +173,15 @@ public class coordinate_trans {
         double coslam = Math.cos(lambda);
         double sinlam = Math.sin(lambda);
 
-
+        difxyz = Cal_Matrix(sinphi,cosphi,sinlam,coslam,tmpenu);
+        xyz[0] = tmpxyz[0] + difxyz[0];
+        xyz[1] = tmpxyz[1] + difxyz[1];
+        xyz[2] = tmpxyz[2] + difxyz[2];
 
         return xyz;
     }
 
-    public double[] Cal_Matrix(double sinphi, double cosphi, double sinlam, double coslam, double[] tmpenu)
+    private double[] Cal_Matrix(double sinphi, double cosphi, double sinlam, double coslam, double[] tmpenu)
     {
         double[] difxyz = {0,0,0};
         double a,b,c,d,e,f,g,h,i = 0;
