@@ -1,5 +1,6 @@
 package com.example.locationm_gps;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -21,6 +22,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -96,9 +98,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean flag = true;
 
-    private Location pre_GPS_Location;
     private Location cur_GPS_Location;
-    private Location Last_GPS_Location;
     private Location Ref_GPS_Location;
     private Location lastKnownLocation;
 
@@ -119,12 +119,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private double dt_all_acc = 0;
     private double pitch;
 
-
     private double cur_gyro_y = 0;
     private double cur_acc_z = 0;
     private double cur_acc_z_V;
     private double cur_acc_z_D;
-    private double all_D = 0;
 
     private double pre_acc_z = 0;
     private double pre_acc_z_V = 0;
@@ -157,9 +155,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
         //----------Map--------//
-
-
-
 
         //----------TextView--------//
         txtGPSLocation  = (TextView) findViewById(R.id.tv_GpsLocation);
@@ -246,47 +241,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (lastKnownLocation != null) {
             double lng = lastKnownLocation.getLongitude();
             double lat = lastKnownLocation.getLatitude();
-//            cur_GPS_Location = lastKnownLocation;
             Ref_GPS_Location = lastKnownLocation;
             Log.d(TAG, "lastKnownLocation : "+", latitude=" + lat+"longtitude=" + lng);
             txtGPSLocation.setText("GPS Location : " + Double.toString(lat) + "," + Double.toString(lng));
             LastPosition  = new LatLng(lat,lng);
         }
-
-//        Location Ref_GPS_Location = lastKnownLocation;
-//        Log.d(TAG, "Ref_GPS_Location : "+"latitude=" + Ref_GPS_Location.getLatitude() + ", longitude=" + Ref_GPS_Location.getLongitude());
-//        if (Ref_GPS_Location != null) //이 위치를 기준으로 D.R
-//        {  txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
-//            Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-//            enu[0] = 10 * Math.sin(0 * DtoR + 90*DtoR);  //부호 주의
-//            enu[1] = 10 * Math.cos(0 * DtoR + 90*DtoR);
-//            Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
-//            Cur_llh = Coor.xyz2llh(Cur_xyz);
-//            Log.d(TAG, "enu : "+ String.valueOf(enu[0]) + "," + String.valueOf(enu[1]) + "," + String.valueOf(enu[2]));
-//            Log.d(TAG, "Cur_xyz : "+ String.valueOf(Cur_xyz[0]) + "," + String.valueOf(Cur_xyz[1]) + ","  + String.valueOf(Cur_xyz[2]));
-//            Log.d(TAG, "Cur_llh : "+ String.valueOf(Cur_llh[0]*RtoD) + ","  + String.valueOf(Cur_llh[1]*RtoD) + "," + String.valueOf(Cur_llh[2]*RtoD));
-//          //  onMapPosition(Cur_llh[0], Cur_llh[1], 2);
-//        }
-
-//        handler = new Handler(){
-//            @Override
-//            public void handleMessage(Message msg) {
-//                handler.sendEmptyMessageDelayed(0,1000);
-//                if(cur_GPS_Location != null) Log.d(TAG,"Timer : " + String.valueOf(cur_GPS_Location) + String.valueOf(onGPS));
-//                double latitude = cur_GPS_Location.getLatitude();
-//                double longitude = cur_GPS_Location.getLongitude();
-//
-//                if(onGPS) onMapPosition(latitude, longitude, 1);
-//                else onMapPosition(latitude, longitude, 2);
-//
-//                if(save_mode) WriteTextFile(foldername, filename,String.valueOf(cur_GPS_Location.getLatitude()) + "," + String.valueOf(cur_GPS_Location.getLongitude()) + "," +
-//                        String.valueOf(System.currentTimeMillis()) + "," + String.valueOf(onGPS) +"\n");
-//            }
-//        };
-//        handler.sendEmptyMessage(0);
-
-
-
     }
 
     /**
@@ -321,14 +280,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu){
         getMenuInflater().inflate(R.menu.tool_menu,menu);
         return true;
     }
-
     @Override
     public  boolean onOptionsItemSelected(MenuItem item){
         switch (item.getItemId()){
@@ -358,9 +314,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mode1 = false;
                 mode2 = false;
                 mode3 = true;
-
                 Init_SensorData();
-
                 break;
         }
         return false;
@@ -448,65 +402,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (flag) {
             if (location.getProvider().equals(LocationManager.GPS_PROVIDER)) {
                 cur_GPS_Location = location;
-                latitude = location.getLatitude();
-                longitude = location.getLongitude();
+//                latitude = location.getLatitude();
+//                longitude = location.getLongitude();
                 onGPS = isBetterLocation(cur_GPS_Location);
-//                if (pre_GPS_Location != null) {
-//                    txtOnGps.setText("OnGPS : " + String.valueOf(onGPS));
-//                }
-//                pre_GPS_Location = cur_GPS_Location;
                 if (mode1) {
                     if (onGPS) {
-                        txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
-                        onMapPosition(latitude, longitude, 1);
-                        Last_GPS_Location = cur_GPS_Location;  //마지막 위치,각도 저장
+                        txtGPSLocation.setText("GPS Location : " + Double.toString(cur_GPS_Location.getLatitude()) + "," + Double.toString(cur_GPS_Location.getLongitude()));
+                        onMapPosition(cur_GPS_Location, 1);
+                        Ref_GPS_Location = cur_GPS_Location;  //마지막 위치,각도 저장
                         Last_Map_angle = Map_angle;
+                        if(save_mode) WriteTextFile(foldername, filename, String.valueOf(onGPS) + "," + String.valueOf(cur_GPS_Location.getLatitude()) + "," + String.valueOf(cur_GPS_Location.getLongitude())+
+                                "," + String.valueOf(Map_angle) + "," + String.valueOf(pitch*RtoD) + "\n");
+
                         Init_SensorData();
                     }
-//                    else {
-//                        Dead reckoning
-//                        Ref_GPS_Location = Last_GPS_Location;
-//                        if (Ref_GPS_Location != null) //이 위치를 기준으로 D.R
-//                        {  txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
-//                            Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-//                            enu[0] = all_D * 0.01 * Math.sin(-Last_Map_angle * DtoR - pitch);  //부호 주의
-//                            enu[1] = all_D * 0.01 * Math.cos(-Last_Map_angle * DtoR - pitch);
-//                            Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
-//                            Cur_llh = Coor.xyz2llh(Cur_xyz);
-//                            onMapPosition(Cur_llh[0]*RtoD, Cur_llh[1]*RtoD, 2);
-//                        }
-//                    }
-                    if(save_mode) WriteTextFile(foldername, filename, String.valueOf(onGPS) +"," + String.valueOf(-Last_Map_angle) +"," + String.valueOf(-pitch*RtoD) +","
-                    + String.valueOf(Cur_llh[0]*RtoD) +"," + String.valueOf(Cur_llh[1]*RtoD)+ "\n");
                 }
                 if (mode2) {
-                    onMapPosition(latitude, longitude, 1);
+                    onMapPosition(cur_GPS_Location, 1);
                     txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
                 }
             }
-
-            if(location.getProvider().equals(LocationManager.NETWORK_PROVIDER))
-            {
-                txtGPSLocation.setText("NETWORK_PROVIDER.time : " + String.valueOf(location.getTime()));
-                if(save_mode) WriteTextFile(foldername, filename, String.valueOf(location.getTime())+ "\n");
-            }
             flag = false; //한번만 들어오게 하는 flag
         }
-
         else flag = true;
-
     }
 
-    public void onMapPosition(double latitude, double longitude,int mode)
+    public void onMapPosition(Location location,int mode)
     {
-
         Log.d(TAG, "onMapPosition");
-        currentPosition = new LatLng(latitude,longitude);
+        currentPosition = new LatLng(location.getLatitude(),location.getLongitude());
         Map_angle = CalBearing(currentPosition, prePosition);  //마커 회전을 위한 각도 (도 단위) 북을 기준 반시계가 양수
         prePosition = currentPosition;
         Log.d(TAG, "onMapPosition : " + "cur : " + String.valueOf(currentPosition) + "pre : " + String.valueOf(prePosition));
         String markerTitle = "MODE_" + String.valueOf(mode);
-        String markerSnippet = "위도:" + String.valueOf(latitude) + " 경도:" + String.valueOf(longitude);
+        String markerSnippet = "위도:" + String.valueOf(location.getLatitude()) + " 경도:" + String.valueOf(location.getLongitude());
         setCurrentLocation(currentPosition,markerTitle,markerSnippet,mode,Map_angle);
     }
     public float CalBearing(LatLng curPos, LatLng prePos){
@@ -519,17 +448,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             angle  = (float)Math.atan2(Math.sin(dl) * Math.cos(f2), Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl));
             angle = (float)(-angle * 180 / Math.PI); //마커 회전 (도 단위) 북을 기준 시계방향이 양수, 위경도로 구한 각도 시계방향이 음수
 
-            temp_epoch++;
-            if (temp_epoch <5)
-            {
-                final_angle =  angle;
-            }else{
 
-                final_angle = (float)(final_angle*0.55 + angle*0.45);
-            }
 
         }
-        return  final_angle;
+        return  angle;
     }
     public void setCurrentLocation(LatLng currentPosition,String markerTitle,String markerSnippet,int mode,float angle) {
         Log.d(TAG, "setCurrentLocation");
@@ -664,15 +586,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        double accX = 0;
-        double accY = 0;
         if (!onGPS || mode3) {
             if (event.sensor == mAccelerometer) {
                 System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
-
-//            accX = event.values[0];
-//            accY = event.values[1];
-
                 if (acc_count < 5) { //dt = 0.1초
                     cur_acc_z = cur_acc_z + event.values[2];
                     dt_acc = (event.timestamp - timestamp_acc) * NS2S;
@@ -686,8 +602,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         cur_acc_z_V = pre_acc_z_V + ave_acc_z * 0.1;
                         ave_acc_z_V = (pre_acc_z_V + cur_acc_z_V) / 2;
                         cur_acc_z_D = ave_acc_z_V * 0.1 + 0.5 * ave_acc_z * 0.1 * 0.1;
-
-//                        all_D = all_D + cur_acc_z_D;
                         pre_acc_z = cur_acc_z;
                         pre_acc_z_V = cur_acc_z_V;
                         txtAcc.setText(" Dz : " + String.valueOf(cur_acc_z_D) + "m" + "  dt : " + String.valueOf(dt_all_acc));
@@ -699,35 +613,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
                 if(sec_count>49) //1초
                 {
-                    if (cur_GPS_Location != null) { //마지막 위치 데이터가 존재하고
-                        if (Ref_GPS_Location.getLatitude() == cur_GPS_Location.getLatitude()) //이 위치를 기준으로 D.R   if,else -> 상대위치
-                        {
+                    if (Ref_GPS_Location != null) { //마지막 위치 데이터가 존재하고
                             txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
                             Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-                            enu[0] = 1 * Math.sin(-Last_Map_angle * DtoR - pitch);  //부호 주의
-                            enu[1] = 1 * Math.cos(-Last_Map_angle * DtoR - pitch);
+                            enu[0] = 1.5 * Math.sin(Last_Map_angle * DtoR - pitch);  //부호 주의
+                            enu[1] = 1.5 * Math.cos(Last_Map_angle * DtoR - pitch);
                             Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
                             Cur_llh = Coor.xyz2llh(Cur_xyz);
-                            onMapPosition(Cur_llh[0] * RtoD, Cur_llh[1] * RtoD, 2);
                             Ref_GPS_Location.setLatitude(Cur_llh[0] * RtoD);
                             Ref_GPS_Location.setLongitude(Cur_llh[1] * RtoD);
+                            onMapPosition(Ref_GPS_Location, 2);
+                        if(save_mode) WriteTextFile(foldername, filename, String.valueOf(onGPS) +","+ String.valueOf(Ref_GPS_Location.getLatitude())  +","+ String.valueOf(Ref_GPS_Location.getLongitude())
+                                +","+ String.valueOf(Last_Map_angle)  +","+ String.valueOf( - pitch*RtoD)+ "\n");
                             Log.d(TAG, "Ref_GPS_Location(if) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD));
-
-                        } else {
-                            txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
-                            Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-                            enu[0] = 1 * Math.sin(-Last_Map_angle * DtoR - pitch);  //부호 주의
-                            enu[1] = 1 * Math.cos(-Last_Map_angle * DtoR - pitch);
-                            Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
-                            Cur_llh = Coor.xyz2llh(Cur_xyz);
-                            onMapPosition(Cur_llh[0] * RtoD, Cur_llh[1] * RtoD, 2);
-                            Ref_GPS_Location.setLatitude(Cur_llh[0] * RtoD);
-                            Ref_GPS_Location.setLongitude(Cur_llh[1] * RtoD);
-                            Log.d(TAG, "Ref_GPS_Location(else) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD));
 
                         }
                         sec_count = 0;
-                    }
                 }
                 sec_count++; //카운트가 50번이 되면 1초
             }
@@ -754,9 +655,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             } else if (event.sensor == mPressure) {
                 txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
             }
-
-
-
         }
     }
 
@@ -776,7 +674,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         cur_acc_z = 0;
         cur_acc_z_V = 0;
         cur_acc_z_D = 0;
-        all_D = 0;
         pre_acc_z = 0;
         pre_acc_z_V = 0;
         ave_acc_z = 0;
@@ -785,24 +682,5 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         gyro_count = 0;
 
     }
-
-    public void SelectMode(int mode)
-    {
-        switch (mode){
-            case 2:
-                mode2 = true;
-                mode3 = false;
-                break;
-            case 3:
-                mode2 = false;
-                mode3 = true;
-                Init_SensorData();
-
-                break;
-        }
-
-    }
-
-
 
 }
