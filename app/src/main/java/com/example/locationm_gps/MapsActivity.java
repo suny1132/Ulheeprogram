@@ -48,7 +48,6 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -79,15 +78,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private TextView txtGPSLocation,txtLocationAcc,txtMode,txtAcc,txtGyro,txtPress,txtOnGps; //
     private String TAG = "LocationProvider";
 
-    private int MIN_UPDATE_MILLIS = 1000;
-    private int MIN_UPDATE_MITERS = 0;
+    private int MIN_UPDATE_MILLIS = 500;
+    private int MIN_UPDATE_MITERS = 1;
 
     private int ZoomLevel = 16;
     private Button btnZin, btnZOut; //줌 버튼 사용
 
     private Toolbar mToolbar; //툴바사용
 
-    private boolean mode1 = true, mode2 = false, mode3 = false; //모드 변경 확인 변수
+    private boolean modeAuto = true;
+    private int mode = 2;
     private boolean mSwitch = true; //카메라 이동 확인
     private ImageButton mPositionButton; //위치 고정 버튼 사용
 
@@ -106,11 +106,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private float Map_angle = 0;
     private float Last_Map_angle = 0;
 
-    private int temp_epoch = 0;
-    private float final_angle = 0;
-
-    private float MIN_sum_acc = 5;
-    private float res_acc = 0;
+    private float MIN_accuracy = 5;
+    private float Accuracy_Threshold = 0;
     private double timestamp_gyro;
     private double timestamp_acc;
     private double dt_gyro;
@@ -141,8 +138,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private double[] Cur_xyz = {0,0,0};
     private double[] Cur_llh = {0,0,0};
 
-    Handler handler;
     coordinate_trans Coor = new coordinate_trans();
+    File file = new File();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,6 +244,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             txtGPSLocation.setText("GPS Location : " + Double.toString(lat) + "," + Double.toString(lng));
             LastPosition  = new LatLng(lat,lng);
         }
+
+        BackRunnable runnable = new BackRunnable(); //Runnalbe 객체 생성
+        Thread thread = new Thread(runnable); //Runnalbe 객체를 통해 작업 스레드 생성
+        thread.setDaemon(true); //메이스레드와 종료 동기화
+        thread.start(); // 작업스레드 시작
+
     }
 
     /**
@@ -258,27 +262,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * installed Google Play services and returned to the app.
      */
 
-    //데이터 저장
-    public void WriteTextFile(String foldername, String filename, String contents){
-        try{
-            File dir = new File (foldername);
-            //디렉토리 폴더가 없으면 생성함
-            if(!dir.exists()){
-                dir.mkdir();
-            }
-            //파일 output stream 생성
-            FileOutputStream fos = new FileOutputStream(foldername+"/"+filename, true);
-            //파일쓰기
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
-            writer.write(contents);
-            writer.flush();
 
-            writer.close();
-            fos.close();
-        }catch (IOException e){
-            e.printStackTrace();
-        }
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu){
@@ -295,25 +279,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Toast.makeText(getApplicationContext(),"mode1",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_AUTO");
                 txtMode.setTextColor(Color.BLACK);
-                mode1 = true;
-                mode2 = false;
-                mode3 = false;
+                modeAuto = true;
                 break;
             case R.id.mode_2:
                 Toast.makeText(getApplicationContext(),"mode2",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_GPS");
                 txtMode.setTextColor(Color.BLUE);
-                mode1 = false;
-                mode2 = true;
-                mode3 = false;
+                modeAuto = false;
+                mode = 1;
                 break;
             case R.id.mode_3:
                 Toast.makeText(getApplicationContext(),"mode3",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_INS");
                 txtMode.setTextColor(Color.GREEN);
-                mode1 = false;
-                mode2 = false;
-                mode3 = true;
+                modeAuto = false;
+                mode = 2;
                 Init_SensorData();
                 break;
         }
@@ -362,14 +342,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onMapLongClick(LatLng latLng) {
                 Toast.makeText(MapsActivity.this, "Point 저장", Toast.LENGTH_LONG).show();
-                if(save_mode) WriteTextFile(foldername, filename, "Point" + "\n");
+                if(save_mode) file.WriteTextFile(foldername, filename, "Point" + "\n");
             }
         });
     }
 
     public void setDefaultLocation() { //초기 위치로 이동 , 만약 저장된 위치 데이터가 없다면 디폴트위치로 설정
         Log.d(TAG, "setDefaultLocation()");
-        LatLng DEFAULT_LOCATION = null;
+        LatLng DEFAULT_LOCATION;
         if(LastPosition != null) {
             DEFAULT_LOCATION = LastPosition;
         }
@@ -393,33 +373,30 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onLocationChanged(Location location) {
-        // Log.d(TAG, "onLocationChanged");
+         Log.d(TAG, "onLocationChanged");
         if (location == null) return;
-        double latitude = 0.;
-        double longitude = 0.;
-
         txtLocationAcc.setText("Location Acc : " + location.getAccuracy());
         if (flag) {
             if (location.getProvider().equals(LocationManager.GPS_PROVIDER)) {
                 cur_GPS_Location = location;
-//                latitude = location.getLatitude();
-//                longitude = location.getLongitude();
-                onGPS = isBetterLocation(cur_GPS_Location);
-                if (mode1) {
-                    if (onGPS) {
+                if(modeAuto){
+                    isBetterLocation(cur_GPS_Location); //모드 체인지
+                    if (mode == 1) {
                         txtGPSLocation.setText("GPS Location : " + Double.toString(cur_GPS_Location.getLatitude()) + "," + Double.toString(cur_GPS_Location.getLongitude()));
-                        onMapPosition(cur_GPS_Location, 1);
-                        Ref_GPS_Location = cur_GPS_Location;  //마지막 위치,각도 저장
-                        Last_Map_angle = Map_angle;
-                        if(save_mode) WriteTextFile(foldername, filename, String.valueOf(onGPS) + "," + String.valueOf(cur_GPS_Location.getLatitude()) + "," + String.valueOf(cur_GPS_Location.getLongitude())+
+                        onMapPosition(cur_GPS_Location, mode);
+                        Ref_GPS_Location = cur_GPS_Location;  //마지막 위치 저장
+                        Last_Map_angle = Map_angle; //마지막 각도 저장
+                        if(save_mode) file.WriteTextFile(foldername, filename, String.valueOf(onGPS) + "," + String.valueOf(cur_GPS_Location.getLatitude()) + "," + String.valueOf(cur_GPS_Location.getLongitude())+
                                 "," + String.valueOf(Map_angle) + "," + String.valueOf(pitch*RtoD) + "\n");
-
-                        Init_SensorData();
                     }
                 }
-                if (mode2) {
-                    onMapPosition(cur_GPS_Location, 1);
-                    txtGPSLocation.setText("GPS Location : " + Double.toString(latitude) + "," + Double.toString(longitude));
+                else {
+                    if (mode == 1) {
+                        onMapPosition(cur_GPS_Location, mode);
+                        Ref_GPS_Location = cur_GPS_Location;  //마지막 위치,각도 저장
+                        Last_Map_angle = Map_angle;
+                        txtGPSLocation.setText("GPS Location : " + Double.toString(cur_GPS_Location.getLatitude()) + "," + Double.toString(cur_GPS_Location.getLongitude()));
+                    }
                 }
             }
             flag = false; //한번만 들어오게 하는 flag
@@ -429,27 +406,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     public void onMapPosition(Location location,int mode)
     {
-        Log.d(TAG, "onMapPosition");
         currentPosition = new LatLng(location.getLatitude(),location.getLongitude());
         Map_angle = CalBearing(currentPosition, prePosition);  //마커 회전을 위한 각도 (도 단위) 북을 기준 반시계가 양수
-        prePosition = currentPosition;
         Log.d(TAG, "onMapPosition : " + "cur : " + String.valueOf(currentPosition) + "pre : " + String.valueOf(prePosition));
+        prePosition = currentPosition;
+
         String markerTitle = "MODE_" + String.valueOf(mode);
         String markerSnippet = "위도:" + String.valueOf(location.getLatitude()) + " 경도:" + String.valueOf(location.getLongitude());
         setCurrentLocation(currentPosition,markerTitle,markerSnippet,mode,Map_angle);
     }
     public float CalBearing(LatLng curPos, LatLng prePos){
-
         float angle = 0;
         if(curPos != null && prePos != null) {
-            double f1 = Math.PI * prePos.latitude / 180;
-            double f2 = Math.PI * curPos.latitude / 180;
-            double dl = Math.PI * (prePos.longitude - curPos.longitude) / 180;
+            double f1 =  prePos.latitude * DtoR;
+            double f2 =  curPos.latitude * DtoR;
+            double dl = (prePos.longitude - curPos.longitude) * DtoR;
             angle  = (float)Math.atan2(Math.sin(dl) * Math.cos(f2), Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl));
-            angle = (float)(-angle * 180 / Math.PI); //마커 회전 (도 단위) 북을 기준 시계방향이 양수, 위경도로 구한 각도 시계방향이 음수
-
-
-
+            angle = (float)(-angle * RtoD); //마커 회전 (도 단위) 북을 기준 시계방향이 양수, 위경도로 구한 각도 시계방향이 음수
         }
         return  angle;
     }
@@ -466,35 +439,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         switch(mode) {
             case 1:
-                BitmapDrawable bitmapdraw = (BitmapDrawable) getResources().getDrawable(R.drawable.marker);
+                BitmapDrawable bitmapdraw = (BitmapDrawable) getResources().getDrawable(R.drawable.marker); //검은색 마커
                 Bitmap b = bitmapdraw.getBitmap();
                 Bitmap smallMarker = Bitmap.createScaledBitmap(b, 80, 80, false);
                 markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallMarker));
-                markerOptions.anchor(0.5f, 0.5f);
-                markerOptions.rotation(angle);
                 break;
             case 2:
-                BitmapDrawable bitmapdraw_1 = (BitmapDrawable) getResources().getDrawable(R.drawable.marker_1);
+                BitmapDrawable bitmapdraw_1 = (BitmapDrawable) getResources().getDrawable(R.drawable.marker_1); //파란색 마커
                 Bitmap b_1 = bitmapdraw_1.getBitmap();
                 Bitmap smallMarker_1 = Bitmap.createScaledBitmap(b_1, 80, 80, false);
                 markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallMarker_1));
-                markerOptions.anchor(0.5f, 0.5f);
-                markerOptions.rotation(angle);
                 break;
-            case 3:
-                BitmapDrawable bitmapdraw_2 = (BitmapDrawable) getResources().getDrawable(R.drawable.marker_2);
-                Bitmap b_2 = bitmapdraw_2.getBitmap();
-                Bitmap smallMarker_2 = Bitmap.createScaledBitmap(b_2, 80, 80, false);
-                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallMarker_2));
-                markerOptions.anchor(0.5f, 0.5f);
-                markerOptions.rotation(angle);
-                break;
+//            case 3:
+//                BitmapDrawable bitmapdraw_2 = (BitmapDrawable) getResources().getDrawable(R.drawable.marker_2); //초록색 마커
+//                Bitmap b_2 = bitmapdraw_2.getBitmap();
+//                Bitmap smallMarker_2 = Bitmap.createScaledBitmap(b_2, 80, 80, false);
+//                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallMarker_2));
+//                break;
         }
 
+        markerOptions.anchor(0.5f, 0.5f);
+        markerOptions.rotation(angle);
         markerOptions.draggable(true);
-
         currentMarker = mMap.addMarker(markerOptions);
-
         CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
         if(mSwitch) mMap.moveCamera(cameraUpdate); //위치가 바뀔때 마다 카메라 위치가 따라감
     }
@@ -563,101 +530,50 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
         locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
 
-        mSensorManager.registerListener(this,mAccelerometer,SensorManager.SENSOR_DELAY_GAME);
-        mSensorManager.registerListener(this,mGyrometer,SensorManager.SENSOR_DELAY_GAME);
-        mSensorManager.registerListener(this,mPressure,SensorManager.SENSOR_DELAY_GAME);
+        mSensorManager.registerListener(this,mAccelerometer,SensorManager.SENSOR_DELAY_FASTEST);
+        mSensorManager.registerListener(this,mGyrometer,SensorManager.SENSOR_DELAY_FASTEST);
+        mSensorManager.registerListener(this,mPressure,SensorManager.SENSOR_DELAY_FASTEST);
     }
 
-//    public boolean isBetterLocation(Location prelocation,Location currentLocation)
-    public boolean isBetterLocation(Location currentLocation)
+    public void isBetterLocation(Location currentLocation) //현재 위치의 Gps 정확도 판단 - 모드 변경을 위함
     {
-        //현재 수신된 위치 데이터의 제공자가 GPS 인지 아닌지 판단 아니면 false
-        //이전 데이터와 현재 데이터의 시간차이를 비교하여 업데이트 시간과 비교
-            //데이터의 정확도를 받아와 최소값을 판단하여 비교
-        float accuracyData = currentLocation.getAccuracy();
+        float accuracyData = currentLocation.getAccuracy(); //현재 위치의 정확도 데이터
         int threshold = 1;
 
-        if (accuracyData < MIN_sum_acc) MIN_sum_acc = accuracyData;
-        res_acc = MIN_sum_acc + threshold ;
-        if (res_acc < accuracyData) return false;
-        else return true;
+        if (accuracyData < MIN_accuracy) MIN_accuracy = accuracyData;
+        Accuracy_Threshold = MIN_accuracy + threshold ; //정확도 min 값을 이용하여 Threshold 지정
+        if (Accuracy_Threshold < accuracyData) {
+            Init_SensorData();
+            mode = 2; //INS Mode
+        }
+        else {
+            mode = 1; //GPS Mode
+        }
+        Log.d(TAG, "isBetterLocation() mode : " + String.valueOf(mode) );
 
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (!onGPS || mode3) {
             if (event.sensor == mAccelerometer) {
                 System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
-                if (acc_count < 5) { //dt = 0.1초
-                    cur_acc_z = cur_acc_z + event.values[2];
-                    dt_acc = (event.timestamp - timestamp_acc) * NS2S;
-                    dt_all_acc = dt_all_acc + dt_acc;
-                    timestamp_acc = event.timestamp;
-                    acc_count++;
-                } else {
-                    cur_acc_z = cur_acc_z / 5;
-                    if (dt_all_acc >= 0.1) {
-                        ave_acc_z = (pre_acc_z + cur_acc_z) / 2;
-                        cur_acc_z_V = pre_acc_z_V + ave_acc_z * 0.1;
-                        ave_acc_z_V = (pre_acc_z_V + cur_acc_z_V) / 2;
-                        cur_acc_z_D = ave_acc_z_V * 0.1 + 0.5 * ave_acc_z * 0.1 * 0.1;
-                        pre_acc_z = cur_acc_z;
-                        pre_acc_z_V = cur_acc_z_V;
-                        txtAcc.setText(" Dz : " + String.valueOf(cur_acc_z_D) + "m" + "  dt : " + String.valueOf(dt_all_acc));
-
-                        cur_acc_z = 0;
-                        acc_count = 0;
-                        dt_all_acc = 0;
-                    }
-                }
-                if(sec_count>49) //1초
-                {
-                    if (Ref_GPS_Location != null) { //마지막 위치 데이터가 존재하고
-                            txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
-                            Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-                            enu[0] = 1.5 * Math.sin(Last_Map_angle * DtoR - pitch);  //부호 주의
-                            enu[1] = 1.5 * Math.cos(Last_Map_angle * DtoR - pitch);
-                            Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
-                            Cur_llh = Coor.xyz2llh(Cur_xyz);
-                            Ref_GPS_Location.setLatitude(Cur_llh[0] * RtoD);
-                            Ref_GPS_Location.setLongitude(Cur_llh[1] * RtoD);
-                            onMapPosition(Ref_GPS_Location, 2);
-                        if(save_mode) WriteTextFile(foldername, filename, String.valueOf(onGPS) +","+ String.valueOf(Ref_GPS_Location.getLatitude())  +","+ String.valueOf(Ref_GPS_Location.getLongitude())
-                                +","+ String.valueOf(Last_Map_angle)  +","+ String.valueOf( - pitch*RtoD)+ "\n");
-                            Log.d(TAG, "Ref_GPS_Location(if) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD));
-
-                        }
-                        sec_count = 0;
-                }
-                sec_count++; //카운트가 50번이 되면 1초
+                txtAcc.setText("가속도 센서 : " + String.valueOf(mLastAccelerometer[2])); //Z축 가속도 센서 데이터
             }
             else if (event.sensor == mGyrometer) {
                 System.arraycopy(event.values, 0, mLastGyrometer, 0, event.values.length);
-                if (gyro_count < 5) {
-                    cur_gyro_y = cur_gyro_y + event.values[1];
-                    dt_gyro = (event.timestamp - timestamp_gyro) * NS2S;
-                    dt_all_gyro = dt_all_gyro + dt_gyro;
-                    timestamp_gyro = event.timestamp;
-                    gyro_count++;
-                } else {
-                    cur_gyro_y = cur_gyro_y / 5;
-                    if (dt_all_gyro > 0.1) {
-                        pitch = pitch + cur_gyro_y * 0.1;
-                        txtGyro.setText("yaw : " + String.valueOf(pitch * RtoD));
+                dt_gyro = (event.timestamp - timestamp_gyro) * NS2S;
+                timestamp_gyro = event.timestamp;
 
-                        cur_gyro_y = 0;
-                        gyro_count = 0;
-                        dt_all_gyro = 0;
-                    }
+                if(dt_gyro - timestamp_gyro*NS2S != 0)
+                {
+                    pitch = pitch + mLastGyrometer[1]*dt_gyro;
                 }
-
+                txtGyro.setText("자이로 센서 : " + String.valueOf(pitch*RtoD)); //Y축 자이로 센서 데이터
             } else if (event.sensor == mPressure) {
-                txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
+                txtPress.setText("Pressure : " + String.valueOf(event.values[0])); //기압센서 데이터
             }
-        }
-    }
 
+    }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -682,5 +598,46 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         gyro_count = 0;
 
     }
+
+    class BackRunnable implements Runnable{
+        double pitch_thr  = 0;
+
+        @Override
+        public void run() {
+            while(true) {
+                pitch_thr = pitch;
+                if (Ref_GPS_Location != null) { //마지막 위치 데이터가 존재하고
+                    //txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
+                    Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
+                    enu[0] = 1.5 * Math.sin(Last_Map_angle * DtoR - pitch_thr);  //부호 주의
+                    enu[1] = 1.5 * Math.cos(Last_Map_angle * DtoR - pitch_thr);
+                    Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
+                    Cur_llh = Coor.xyz2llh(Cur_xyz);
+                    Ref_GPS_Location.setLatitude(Cur_llh[0] * RtoD); //최근 위치 업데이트
+                    Ref_GPS_Location.setLongitude(Cur_llh[1] * RtoD);
+
+                    if (mode == 2) mhandler.sendEmptyMessage(0);
+                    if (save_mode)
+                        file.WriteTextFile(foldername, filename, String.valueOf(onGPS) + "," + String.valueOf(Ref_GPS_Location.getLatitude()) + "," + String.valueOf(Ref_GPS_Location.getLongitude())
+                                + "," + String.valueOf(Last_Map_angle) + "," + String.valueOf(-pitch * RtoD) + "\n");
+                    Log.d(TAG, "Ref_GPS_Location(if) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD) + "pitch=" +  String.valueOf(pitch_thr*RtoD));
+                }
+                try{
+                    Thread.sleep(1000);
+                }catch (InterruptedException e)
+                {
+                    e.printStackTrace();
+                }
+            } //end while
+        }//end run()
+    } // end class BackRunnable
+
+    Handler mhandler = new Handler(){
+      public  void handleMessage(Message msg){
+          if(msg.what == 0){
+              onMapPosition(Ref_GPS_Location, mode);
+          }
+      }
+    };
 
 }

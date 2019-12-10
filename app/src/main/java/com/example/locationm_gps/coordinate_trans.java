@@ -6,7 +6,7 @@ public class coordinate_trans {
 
     private double a = 6378137.0000;	// earth semimajor axis in meters
     private double b = 6356752.3142;	// earth semiminor axis in meters
-    private double  e = Math.sqrt(1-Math.pow((b/a),2));
+    private double e = Math.sqrt(1-Math.pow((b/a),2));
 
     public double[] llh2xyz(double latitude, double longitude, double height)
     {
