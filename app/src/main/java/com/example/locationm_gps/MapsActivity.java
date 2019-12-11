@@ -48,6 +48,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -57,7 +58,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,LocationListener, SensorEventListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, LocationListener, SensorEventListener {
 
     private GoogleMap mMap;
     private Marker currentMarker = null;
@@ -65,21 +66,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private static SensorManager mSensorManager;
     private Sensor mAccelerometer;
-    private Sensor mGyrometer;
+    private Sensor mGyroscope;
     private Sensor mPressure;
 
     private float[] mLastAccelerometer = new float[3];
-    private float[] mLastGyrometer = new float[3];
+    private float[] mLastGyroscope = new float[3];
+    private float mLastPressure;
 
     LatLng currentPosition;
     LatLng prePosition;
     LatLng LastPosition;
 
-    private TextView txtGPSLocation,txtLocationAcc,txtMode,txtAcc,txtGyro,txtPress,txtOnGps; //
+    private TextView txtGPSLocation,txtLocationAcc,txtMode,txtAcc,txtGyro,txtHeading,txtOnGps; //
     private String TAG = "LocationProvider";
 
-    private int MIN_UPDATE_MILLIS = 500;
-    private int MIN_UPDATE_MITERS = 1;
+    private int MIN_UPDATE_MILLIS = 0;
+    private int MIN_UPDATE_MITERS = 0;
 
     private int ZoomLevel = 16;
     private Button btnZin, btnZOut; //줌 버튼 사용
@@ -88,6 +90,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean modeAuto = true;
     private int mode = 2;
+
+    private boolean mode1 = true, mode2 = false, mode3 = false; //모드 변경 확인 변수
     private boolean mSwitch = true; //카메라 이동 확인
     private ImageButton mPositionButton; //위치 고정 버튼 사용
 
@@ -129,18 +133,55 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private int gyro_count = 0;
     private int sec_count = 0;
 
+    private double pre_heading = 0, cur_heading = 0;
+    private double pre_sf_h = 0.99975, cur_sf_h = 0.99975;
+    private double pre_bias_h = 0.001, cur_bias_h = 0.001;
+
+    private int THREAD_TIME = 500; //ms
+    private double dt_sensor = THREAD_TIME*1e-3;
     private double RtoD = 180 / Math.PI;
     private double DtoR = Math.PI/180;
     private static final float NS2S = 1.0f/1000000000.0f; //나노세컨드 -> 세컨드
+    private double ALPHA_PRESSURE = 1/5.255;
+    private double BETA_PRESSURE = 44330;
+    private double WINDOW_PRESSURE = 300;
+    private int WINDOW_SLOPE = 600;
+    private int WINDOW_VARIANCE = 20;
+    private double THRESHOLD_VARIANCE = 0.08;
+
+    private int dataIndex_pressure = 1;
+    private int dataIndex_variance = 1;
+
+    private double acc_norm[] = new double[20];
+    private double acc_var[] = new double[20];
+    private double altitude[] = new double[WINDOW_SLOPE];
+    private double averagePressure;
 
     private double[] Ref_xyz = {0, 0, 0};
     private double[] enu = {0, 0, 0};
     private double[] Cur_xyz = {0,0,0};
     private double[] Cur_llh = {0,0,0};
 
-    coordinate_trans Coor = new coordinate_trans();
-    File file = new File();
+    private double[] pre_x_h = {0, 0, 0};
+    private double[] cur_x_h = {0, 0, 0};
 
+    // Heading Filter
+    /*
+    private double F_h_12 = 0;
+    private double F_h_13 = 1;
+    private double P_h_11 = 0.02;
+    private double P_h_22 = 0.001;
+    private double P_h_33 = 0.001;
+    private double H_h_11 = 1;
+    private double Q_h_11 = 0.0025*0.0025;
+    private double Q_h_22 = 1e-8;
+    private double Q_h_33 = 1e-8;
+    private double R_h = 0.2;*/
+
+
+    coordinate_trans Coor = new coordinate_trans();
+    com.example.locationm_gps.File file = new com.example.locationm_gps.File();
+    headingFilter HF = new headingFilter();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -161,7 +202,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         txtOnGps = (TextView) findViewById(R.id.tv_Ongps);
         txtAcc = (TextView) findViewById(R.id.tv_Acc);
         txtGyro = (TextView) findViewById(R.id.tv_Gyro);
-        txtPress = (TextView) findViewById(R.id.tv_Press);
+        txtHeading = (TextView) findViewById(R.id.tv_Heading);
         //----------TextView--------//
 
         //----------Toolbar--------//
@@ -180,7 +221,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //----------Sensor--------//
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
         mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        mGyrometer = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        mGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         mPressure = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
         //----------Sensor--------//
 
@@ -240,16 +281,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             double lng = lastKnownLocation.getLongitude();
             double lat = lastKnownLocation.getLatitude();
             Ref_GPS_Location = lastKnownLocation;
+            cur_GPS_Location = lastKnownLocation;
             Log.d(TAG, "lastKnownLocation : "+", latitude=" + lat+"longtitude=" + lng);
             txtGPSLocation.setText("GPS Location : " + Double.toString(lat) + "," + Double.toString(lng));
             LastPosition  = new LatLng(lat,lng);
         }
 
-        BackRunnable runnable = new BackRunnable(); //Runnalbe 객체 생성
-        Thread thread = new Thread(runnable); //Runnalbe 객체를 통해 작업 스레드 생성
-        thread.setDaemon(true); //메이스레드와 종료 동기화
-        thread.start(); // 작업스레드 시작
-
+        BackRunnable runnable = new BackRunnable();
+        Thread thread = new Thread(runnable);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
@@ -262,7 +303,27 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * installed Google Play services and returned to the app.
      */
 
+    //데이터 저장
+    public void WriteTextFile(String foldername, String filename, String contents){
+        try{
+            File dir = new File (foldername);
+            //디렉토리 폴더가 없으면 생성함
+            if(!dir.exists()){
+                dir.mkdir();
+            }
+            //파일 output stream 생성
+            FileOutputStream fos = new FileOutputStream(foldername+"/"+filename, true);
+            //파일쓰기
+            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
+            writer.write(contents);
+            writer.flush();
 
+            writer.close();
+            fos.close();
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu){
@@ -276,20 +337,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Toast.makeText(getApplicationContext(),"셋팅아이콘 클릭",Toast.LENGTH_LONG).show();
                 break;
             case R.id.mode_1:
-                Toast.makeText(getApplicationContext(),"mode1",Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(),"MODE_AUTO",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_AUTO");
                 txtMode.setTextColor(Color.BLACK);
                 modeAuto = true;
+                mode = 2;
                 break;
             case R.id.mode_2:
-                Toast.makeText(getApplicationContext(),"mode2",Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(),"MODE_GPS",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_GPS");
                 txtMode.setTextColor(Color.BLUE);
                 modeAuto = false;
                 mode = 1;
                 break;
             case R.id.mode_3:
-                Toast.makeText(getApplicationContext(),"mode3",Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(),"MODE_INS",Toast.LENGTH_LONG).show();
                 txtMode.setText("MODE_INS");
                 txtMode.setTextColor(Color.GREEN);
                 modeAuto = false;
@@ -342,14 +404,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onMapLongClick(LatLng latLng) {
                 Toast.makeText(MapsActivity.this, "Point 저장", Toast.LENGTH_LONG).show();
-                if(save_mode) file.WriteTextFile(foldername, filename, "Point" + "\n");
+                if(save_mode) WriteTextFile(foldername, filename, "Point" + "\n");
             }
         });
     }
 
     public void setDefaultLocation() { //초기 위치로 이동 , 만약 저장된 위치 데이터가 없다면 디폴트위치로 설정
         Log.d(TAG, "setDefaultLocation()");
-        LatLng DEFAULT_LOCATION;
+        LatLng DEFAULT_LOCATION = null;
         if(LastPosition != null) {
             DEFAULT_LOCATION = LastPosition;
         }
@@ -373,7 +435,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onLocationChanged(Location location) {
-         Log.d(TAG, "onLocationChanged");
+        Log.d(TAG, "onLocationChanged");
         if (location == null) return;
         txtLocationAcc.setText("Location Acc : " + location.getAccuracy());
         if (flag) {
@@ -407,12 +469,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapPosition(Location location,int mode)
     {
         currentPosition = new LatLng(location.getLatitude(),location.getLongitude());
-        Map_angle = CalBearing(currentPosition, prePosition);  //마커 회전을 위한 각도 (도 단위) 북을 기준 반시계가 양수
-        Log.d(TAG, "onMapPosition : " + "cur : " + String.valueOf(currentPosition) + "pre : " + String.valueOf(prePosition));
+        //  Map_angle = CalBearing(currentPosition, prePosition);  //마커 회전을 위한 각도 (도 단위) 북을 기준 반시계가 양수
+        Map_angle = location.getBearing();
+        Log.d(TAG, "onMapPosition : " + "cur : " + currentPosition + "pre : " + prePosition);
         prePosition = currentPosition;
 
-        String markerTitle = "MODE_" + String.valueOf(mode);
-        String markerSnippet = "위도:" + String.valueOf(location.getLatitude()) + " 경도:" + String.valueOf(location.getLongitude());
+        String markerTitle = "MODE_" + mode;
+        String markerSnippet = "위도:" + location.getLatitude() + " 경도:" + location.getLongitude();
         setCurrentLocation(currentPosition,markerTitle,markerSnippet,mode,Map_angle);
     }
     public float CalBearing(LatLng curPos, LatLng prePos){
@@ -429,14 +492,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void setCurrentLocation(LatLng currentPosition,String markerTitle,String markerSnippet,int mode,float angle) {
         Log.d(TAG, "setCurrentLocation");
         if (currentMarker != null) currentMarker.remove();
-
-        LatLng currentLatLng = currentPosition;
-
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.title(markerTitle);
         markerOptions.snippet(markerSnippet);
-        markerOptions.position(currentLatLng);
-
+        markerOptions.position(currentPosition);
         switch(mode) {
             case 1:
                 BitmapDrawable bitmapdraw = (BitmapDrawable) getResources().getDrawable(R.drawable.marker); //검은색 마커
@@ -462,7 +521,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.rotation(angle);
         markerOptions.draggable(true);
         currentMarker = mMap.addMarker(markerOptions);
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentPosition);
         if(mSwitch) mMap.moveCamera(cameraUpdate); //위치가 바뀔때 마다 카메라 위치가 따라감
     }
 
@@ -504,10 +563,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
                 // 권한 재요청
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 100);
-                return;
             } else {
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 100);
-                return;
             }
         }
 
@@ -531,15 +588,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, MIN_UPDATE_MILLIS, MIN_UPDATE_MITERS, this);
 
         mSensorManager.registerListener(this,mAccelerometer,SensorManager.SENSOR_DELAY_FASTEST);
-        mSensorManager.registerListener(this,mGyrometer,SensorManager.SENSOR_DELAY_FASTEST);
+        mSensorManager.registerListener(this,mGyroscope,SensorManager.SENSOR_DELAY_FASTEST);
         mSensorManager.registerListener(this,mPressure,SensorManager.SENSOR_DELAY_FASTEST);
     }
 
+    //    public boolean isBetterLocation(Location prelocation,Location currentLocation)
     public void isBetterLocation(Location currentLocation) //현재 위치의 Gps 정확도 판단 - 모드 변경을 위함
     {
+
         float accuracyData = currentLocation.getAccuracy(); //현재 위치의 정확도 데이터
         int threshold = 1;
-
+        if(accuracyData <= 0) mode = 2; //INS Mode
         if (accuracyData < MIN_accuracy) MIN_accuracy = accuracyData;
         Accuracy_Threshold = MIN_accuracy + threshold ; //정확도 min 값을 이용하여 Threshold 지정
         if (Accuracy_Threshold < accuracyData) {
@@ -549,30 +608,53 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         else {
             mode = 1; //GPS Mode
         }
-        Log.d(TAG, "isBetterLocation() mode : " + String.valueOf(mode) );
+        Log.d(TAG, "isBetterLocation() mode : " + mode );
 
     }
-
     @Override
     public void onSensorChanged(SensorEvent event) {
-            if (event.sensor == mAccelerometer) {
-                System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
-                txtAcc.setText("가속도 센서 : " + String.valueOf(mLastAccelerometer[2])); //Z축 가속도 센서 데이터
-            }
-            else if (event.sensor == mGyrometer) {
-                System.arraycopy(event.values, 0, mLastGyrometer, 0, event.values.length);
-                dt_gyro = (event.timestamp - timestamp_gyro) * NS2S;
-                timestamp_gyro = event.timestamp;
+        if (event.sensor == mAccelerometer) {
+            System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
+            variance_Acceleration_Process(mLastAccelerometer);
+            //Log.i("VARIANCE",String.valueOf(acc_var[19]));
+        } else if (event.sensor == mGyroscope) {
+            System.arraycopy(event.values, 0, mLastGyroscope, 0, event.values.length);
+        } else if (event.sensor == mPressure) {
+            mLastPressure = event.values[0];
+            average_Pressure_Process(mLastPressure);
+            //txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
+        }
+    }
 
-                if(dt_gyro - timestamp_gyro*NS2S != 0)
-                {
-                    pitch = pitch + mLastGyrometer[1]*dt_gyro;
-                }
-                txtGyro.setText("자이로 센서 : " + String.valueOf(pitch*RtoD)); //Y축 자이로 센서 데이터
-            } else if (event.sensor == mPressure) {
-                txtPress.setText("Pressure : " + String.valueOf(event.values[0])); //기압센서 데이터
-            }
+    private void average_Pressure_Process(double sensorPressure) {
+        if(dataIndex_pressure == 1){
+            averagePressure = sensorPressure;
+        }else if(dataIndex_pressure < WINDOW_PRESSURE){
+            averagePressure = (averagePressure*(dataIndex_pressure-1)/dataIndex_pressure) + (sensorPressure/dataIndex_pressure);
+        }else{
+            averagePressure = (averagePressure*(WINDOW_PRESSURE-1)/WINDOW_PRESSURE) + (sensorPressure/WINDOW_PRESSURE);
+        }
+        dataIndex_pressure++;
+    }
 
+    private void variance_Acceleration_Process(float[] sensorAcc) {
+        double acc_xyz = sensorAcc[0]*sensorAcc[0] + sensorAcc[1]*sensorAcc[1] + sensorAcc[2]*sensorAcc[2];
+        double acc_xyz_norm = Math.sqrt(acc_xyz);
+        if(dataIndex_variance == 1){
+            acc_norm[0] = acc_xyz_norm;
+            acc_var[0] = 0;
+        }else if(dataIndex_variance <= WINDOW_VARIANCE){
+            acc_norm[dataIndex_variance-1] = acc_xyz_norm;
+            double acc_mat[] = new double[dataIndex_variance];
+            System.arraycopy(acc_norm, 0, acc_mat, 0, dataIndex_variance);
+
+            acc_var[dataIndex_variance-1] = Matrix.standardDeviation(acc_mat, dataIndex_variance);
+        }else{
+            System.arraycopy(acc_norm, 1, acc_norm, 0, WINDOW_VARIANCE-1);
+            acc_norm[WINDOW_VARIANCE-1] = acc_xyz_norm;
+            acc_var[WINDOW_VARIANCE-1] = Matrix.standardDeviation(acc_norm, WINDOW_VARIANCE);
+        }
+        dataIndex_variance++;
     }
 
     @Override
@@ -596,48 +678,74 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ave_acc_z_V = 0;
         acc_count = 0;
         gyro_count = 0;
-
     }
 
-    class BackRunnable implements Runnable{
-        double pitch_thr  = 0;
+    class BackRunnable implements Runnable {
+        double accZ_tr = 0;
+        double gyroY_tr = 0;
+        double press_tr = 0;
+        double pitch_tr  = 0;
 
         @Override
         public void run() {
             while(true) {
-                pitch_thr = pitch;
+
+                accZ_tr = mLastAccelerometer[2];
+                gyroY_tr = mLastGyroscope[1];
+                //press_tr = mLastPressure;
+                press_tr = averagePressure;
+
+                // Map_angle;
+                pre_x_h[0] = pre_heading; pre_x_h[1] = (1/pre_sf_h); pre_x_h[2] = (pre_bias_h/pre_sf_h);
+                cur_x_h = HF.cal_heading(pre_x_h, gyroY_tr, dt_sensor, mode, Map_angle);
+                Map_angle = (float) cur_x_h[0];
+                pitch_tr = pitch_tr + Map_angle;
+
                 if (Ref_GPS_Location != null) { //마지막 위치 데이터가 존재하고
                     //txtGPSLocation.setText("Ref_GPS_Location : " + Double.toString(Ref_GPS_Location.getLatitude()) + "," + Double.toString(Ref_GPS_Location.getLongitude()));
                     Ref_xyz = Coor.llh2xyz(Ref_GPS_Location.getLatitude(), Ref_GPS_Location.getLongitude(), 0);
-                    enu[0] = 1.5 * Math.sin(Last_Map_angle * DtoR - pitch_thr);  //부호 주의
-                    enu[1] = 1.5 * Math.cos(Last_Map_angle * DtoR - pitch_thr);
+                    enu[0] = 1.5 * Math.sin(Last_Map_angle * DtoR + pitch_tr);  //부호 주의
+                    enu[1] = 1.5 * Math.cos(Last_Map_angle * DtoR + pitch_tr);
                     Cur_xyz = Coor.enu2xyz(enu, Ref_xyz);
                     Cur_llh = Coor.xyz2llh(Cur_xyz);
                     Ref_GPS_Location.setLatitude(Cur_llh[0] * RtoD); //최근 위치 업데이트
                     Ref_GPS_Location.setLongitude(Cur_llh[1] * RtoD);
+                    Ref_GPS_Location.setBearing((float)((Last_Map_angle * DtoR + pitch_tr) * RtoD));
 
                     if (mode == 2) mhandler.sendEmptyMessage(0);
-                    if (save_mode)
-                        file.WriteTextFile(foldername, filename, String.valueOf(onGPS) + "," + String.valueOf(Ref_GPS_Location.getLatitude()) + "," + String.valueOf(Ref_GPS_Location.getLongitude())
-                                + "," + String.valueOf(Last_Map_angle) + "," + String.valueOf(-pitch * RtoD) + "\n");
-                    Log.d(TAG, "Ref_GPS_Location(if) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD) + "pitch=" +  String.valueOf(pitch_thr*RtoD));
+
+                    Log.d(TAG, "Ref_GPS_Location(if) : " + "latitude=" + String.valueOf(Cur_llh[0] * RtoD) + "longtitude=" + String.valueOf(Cur_llh[1] * RtoD) + "pitch=" +  String.valueOf(pitch_tr*RtoD));
                 }
+
+                Log.i("ANGLE",String.valueOf(Map_angle*RtoD));
+                System.arraycopy(cur_x_h,0,pre_x_h,0,3);
+
+                //headingFilter.cal_heading();
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        // TextView
+                        txtOnGps.setText("mode : " + mode);
+                        txtAcc.setText("K_h_11 : " + HF.K_h_11 + "K_h_21 : " + HF.K_h_21 + "K_h_31 : " + HF.K_h_31);
+                        txtGyro.setText(" ");
+                        txtHeading.setText("heading : " + Map_angle*RtoD);
+                    }
+                });
+
                 try{
-                    Thread.sleep(1000);
-                }catch (InterruptedException e)
-                {
+                    Thread.sleep(THREAD_TIME);
+                } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             } //end while
-        }//end run()
-    } // end class BackRunnable
-
+        } // end run()
+    } // end class Runnable
+    Handler handler = new Handler();
     Handler mhandler = new Handler(){
-      public  void handleMessage(Message msg){
-          if(msg.what == 0){
-              onMapPosition(Ref_GPS_Location, mode);
-          }
-      }
+        public  void handleMessage(Message msg){
+            if(msg.what == 0){
+                onMapPosition(Ref_GPS_Location, mode);
+            }
+        }
     };
-
 }
