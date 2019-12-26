@@ -5,7 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 
-public class File {
+public class FileInfo {
     //데이터 저장
 
     public void WriteTextFile(String foldername, String filename, String contents){
