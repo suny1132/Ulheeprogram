@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:map="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:name="com.google.android.gms.maps.SupportMapFragment"
@@ -8,10 +8,154 @@
     android:orientation="vertical"
     tools:context=".MapsActivity" >
 
+        <RelativeLayout
+            android:id="@+id/RL_map"
+            android:layout_width="match_parent"
+            android:layout_height="530dp"
+            android:orientation="vertical">
+
+            <fragment
+                android:id="@+id/map"
+                android:name="com.google.android.gms.maps.SupportMapFragment"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_alignParentBottom="true"
+                tools:context=".MapsActivity" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:background="#FFFFFF"
+                android:layout_marginTop="15dp">
+
+                <EditText
+                    android:id="@+id/tv_search"
+                    android:layout_width="300dp"
+                    android:layout_height="wrap_content"
+                    android:hint="Enter the Address."
+                    android:textSize="20sp" />
+
+                <ImageButton
+                    android:id="@+id/btn_search"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:background="@drawable/seach"
+                    android:layout_gravity="center_vertical"/>
+
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btn_save"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="360dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="100dp"
+                android:background="@drawable/save"
+                android:text="SAVE"
+                android:visibility="invisible" />
+
+            <ImageButton
+                android:id="@+id/bt_position"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="470dp"
+                android:background="@drawable/position_click" />
+
+            <Button
+                android:id="@+id/btn_zoomIn"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="230dp"
+                android:background="#FFFFFF"
+                android:text="+"
+                android:textSize="24sp"
+                />
+
+            <Button
+                android:id="@+id/btn_zoomOut"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_marginStart="350dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="275dp"
+                android:background="#FFFFFF"
+                android:text="-"
+                android:textSize="24sp"
+                />
+
+
+        </RelativeLayout>
+
+    <LinearLayout
+        android:id="@+id/LL_data"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/RL_map"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_GpsLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GPS Location : " />
+
+        <TextView
+            android:id="@+id/tv_GpsInsLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GPS/INS Location : " />
+
+        <TextView
+            android:id="@+id/tv_LocationAcc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Location Accuracy : " />
+
+
+        <TextView
+            android:id="@+id/tv_Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Heading : " />
+
+        <TextView
+            android:id="@+id/tv_HeadingAcc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Heading Acc : " />
+
+        <TextView
+            android:id="@+id/tv_Speed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Speed : " />
+
+        <TextView
+            android:id="@+id/tv_Sf"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Scale-factor : " />
+
+        <TextView
+            android:id="@+id/tv_Slope"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sin(theta) : " />
+
+
+    </LinearLayout>
+
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_below="@id/LL_data"
         android:background="#5DA4BE"
         android:minHeight="?attr/actionBarSize"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
@@ -22,136 +166,19 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
-            android:text="Map Test     "
+            android:text="Map Test"
             android:textSize="20sp" />
 
         <TextView
             android:id="@+id/toolbar_mode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-
-            android:text="MODE 1"
+            android:layout_gravity="center"
+            android:text="MODE AUTO"
             android:textColor="#000000"
             android:textSize="20sp" />
 
     </androidx.appcompat.widget.Toolbar>
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="560dp">
 
-
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical">
-
-            <fragment
-                android:id="@+id/map"
-                android:name="com.google.android.gms.maps.SupportMapFragment"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                tools:context=".MapsActivity" />
-
-            <ImageButton
-                android:id="@+id/btn_save"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="360dp"
-                android:layout_marginLeft="22dp"
-                android:layout_marginTop="25dp"
-                android:background="@drawable/save"
-                android:text="SAVE" />
-
-            <ImageButton
-                android:id="@+id/bt_position"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_marginStart="350dp"
-                android:layout_marginLeft="22dp"
-                android:layout_marginTop="420dp"
-                android:background="@drawable/position"
-                />
-
-            <Button
-                android:id="@+id/btn_zoomIn"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_marginStart="350dp"
-                android:layout_marginLeft="22dp"
-                android:layout_marginTop="220dp"
-                android:background="#FFFFFF"
-                android:text="+"
-                android:textSize="24sp"
-               />
-
-            <Button
-                android:id="@+id/btn_zoomOut"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_marginStart="350dp"
-                android:layout_marginLeft="22dp"
-                android:layout_marginTop="275dp"
-                android:background="#FFFFFF"
-                android:text="-"
-                android:textSize="24sp"
-                />
-
-
-
-
-        </RelativeLayout>
-    </FrameLayout>
-
-
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical">
-
-
-            <TextView
-                android:id="@+id/tv_GpsLocation"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="GPS Location : " />
-
-            <TextView
-                android:id="@+id/tv_LocationAcc"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Location Accuracy : " />
-
-            <TextView
-                android:id="@+id/tv_Ongps"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="OnGPS : " />
-            <TextView
-                android:id="@+id/tv_Acc"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="가속도센서 : " />
-
-            <TextView
-                android:id="@+id/tv_Gyro"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="자이로센서 : " />
-            <TextView
-                android:id="@+id/tv_Press"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="기압센서 : " />
-
-
-        </LinearLayout>
-
-
-
-
-
-
-
-</LinearLayout>
+</RelativeLayout>
