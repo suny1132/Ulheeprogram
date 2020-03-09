@@ -6,7 +6,7 @@ import java.util.Arrays;
 
 public class Matrix {
 
-    static double variance(double mat[], int n) {
+    static double variance(double mat[], int n) { //분산 구하기
 
         double sum = 0;
         for (int i = 0; i < n; i++) {

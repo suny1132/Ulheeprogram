@@ -53,8 +53,7 @@
                 android:layout_marginLeft="22dp"
                 android:layout_marginTop="100dp"
                 android:background="@drawable/save"
-                android:text="SAVE"
-                android:visibility="invisible" />
+                android:text="SAVE" />
 
             <ImageButton
                 android:id="@+id/bt_position"
@@ -125,10 +124,10 @@
             android:text="Heading : " />
 
         <TextView
-            android:id="@+id/tv_HeadingAcc"
+            android:id="@+id/tv_HeadingGPS"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Heading Acc : " />
+            android:text="Heading_GPS : " />
 
         <TextView
             android:id="@+id/tv_Speed"
@@ -147,6 +146,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Sin(theta) : " />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="" />
 
 
     </LinearLayout>

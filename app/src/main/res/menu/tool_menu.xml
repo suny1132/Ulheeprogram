@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:map="http://schemas.android.com/apk/res-auto">
+xmlns:map="http://schemas.android.com/apk/res-auto">
 
-    <item
-        android:id="@+id/action_settings"
-        android:icon="@drawable/seticon"
-        android:title="모드 설정"
-        map:showAsAction="always">
-        <menu>
-            <item
-                android:id="@+id/mode_1"
-                android:title="MODE_AUTO" />
-            <item
-                android:id="@+id/mode_2"
-                android:title="MODE_GPS" />
-            <item
-                android:id="@+id/mode_3"
-                android:title="MODE_INS" />
+<item
+    android:id="@+id/action_settings"
+    android:icon="@drawable/seticon"
+    android:title="모드 설정"
+    map:showAsAction="always">
+    <menu>
+        <item
+            android:id="@+id/mode_1"
+            android:title="MODE_AUTO" />
+        <item
+            android:id="@+id/mode_2"
+            android:title="MODE_GPS" />
+        <item
+            android:id="@+id/mode_3"
+            android:title="MODE_INS" />
 
-        </menu>
+    </menu>
 
-    </item>
+</item>
 
 </menu>

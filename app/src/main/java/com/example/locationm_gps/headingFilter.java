@@ -104,10 +104,10 @@ public class headingFilter {
 
         // Measurement Update
         if (flag_mu && mode == 1) {
-            double diff_yaw = GPS_heading - x_h_tu_11;
+           /* double diff_yaw = GPS_heading - x_h_tu_11;
             if (diff_yaw < -90*DtoR) {
                 x_h_tu_11 = x_h_tu_11 + diff_yaw;
-            }
+            }*/
             S_h = P_h_next_11 + R_h;
             double inv_S_h = (1/S_h);
 
