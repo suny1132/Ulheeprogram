@@ -74,7 +74,7 @@ public class coordinate_trans {
 
         if(x >= 0)  lon = temp;
         else if((x < 0) & (y >= 0)) lon = Math.PI + temp;
-	    else lon = temp - Math.PI;
+        else lon = temp - Math.PI;
 
 
         llh[0] = lat;  //라디안

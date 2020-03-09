@@ -67,7 +67,17 @@ public class headingFilter {
         //GPS_heading = GPS_heading*DtoR;
 
         // Time Update
+        //F_h_12 = -gy + 0.000929;//+ 0.000925;
+        /*if(gy > 0) {
+            F_h_12 = -gy + 0.000629;
+        } else if (gy < 0) {
+            F_h_12 = -gy - 0.000629;
+        } else {
+            F_h_12 = -gy;
+        }*/
+
         F_h_12 = -gy;
+
         F_h_13 = 1;
         x_h_tu_dot = F_h_12*x_h[1] + F_h_13*x_h[2];
         x_h_tu_11 = x_h[0] + x_h_tu_dot*dt;
@@ -104,7 +114,7 @@ public class headingFilter {
 
         // Measurement Update
         if (flag_mu && mode == 1) {
-           /* double diff_yaw = GPS_heading - x_h_tu_11;
+       /*     double diff_yaw = GPS_heading - x_h_tu_11;
             if (diff_yaw < -90*DtoR) {
                 x_h_tu_11 = x_h_tu_11 + diff_yaw;
             }*/
@@ -154,3 +164,4 @@ public class headingFilter {
         return x_final;
     }
 }
+
