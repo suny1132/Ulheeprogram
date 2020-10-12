@@ -154,6 +154,21 @@ public class headingFilter {
             x_final[0] = x_h_mu_11;
             x_final[1] = x_h_mu_21;
             x_final[2] = x_h_mu_31;
+
+            if (Math.abs(1/x_final[1]) > 1.1) {
+                x_final[1] = x_h[1];
+                x_final[2] = x_h[2];
+            }
+
+            double sf_check = x_final[1] - x_h[1];
+            if(sf_check < 0) {
+                x_final[1] = x_h[1];
+                x_final[2] = x_h[2];
+            } else if(sf_check > 0.05) {
+                x_final[1] = x_h[1];
+                x_final[2] = x_h[2];
+            }
+
         } else {
             x_final[0] = x_h_tu_11;
             x_final[1] = x_h_tu_21;

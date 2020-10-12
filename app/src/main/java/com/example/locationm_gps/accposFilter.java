@@ -359,13 +359,16 @@ public class accposFilter {
                 x_final[2] = 0;
             }
 
-            if (Math.abs(1/x_final[3]) > 2.2) {
+            if (Math.abs(1/x_final[3]) > 1.7) {
                 x_final[3] = x[3];
                 x_final[4] = x[4];
             }
 
-            double sf_check = Math.abs(x_final[3] - x[3]);
-            if(sf_check > 0.3) {
+            double sf_check = (1/x_final[3]) - (1/x[3]);
+            if(sf_check < 0) {
+                x_final[3] = x[3];
+                x_final[4] = x[4];
+            } else if(sf_check > 0.3) {
                 x_final[3] = x[3];
                 x_final[4] = x[4];
             }
@@ -381,17 +384,6 @@ public class accposFilter {
                 x_final[2] = 0;
             }
 
-            /*
-            if (Math.abs(1/x_final[3]) > 2.5) {
-                x_final[3] = x[3];
-                x_final[4] = x[4];
-            }
-
-            double sf_check = Math.abs(x_final[3] - x[3]);
-            if(sf_check > 0.3) {
-                x_final[3] = x[3];
-                x_final[4] = x[4];
-            }*/
         }
         return x_final;
     }

@@ -1,6 +1,4 @@
 package com.example.locationm_gps;
-
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -19,19 +17,18 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Address;
-import android.location.Criteria;
+
 import android.location.Geocoder;
 import android.location.GnssStatus;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
+
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
-import android.telephony.mbms.FileInfo;
+
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -54,14 +51,13 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
+
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.sql.Ref;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -72,10 +68,10 @@ import java.util.TimeZone;
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, LocationListener, SensorEventListener {
 
     private GoogleMap mMap;
-    private Geocoder geocoder;
+
     private Marker currentMarker = null;
-    private Marker SearchMarker = null;
     private Marker gpsMarker = null;
+    private Marker SearchMarker = null;
 
     private LocationManager locationManager;
     private GnssStatus.Callback mGnssStatuscallback;
@@ -171,16 +167,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private int sec_count = 0;
 
     private double pre_heading = 0, cur_heading = 0;
-    private double pre_sf_h = 0.99975, cur_sf_h = 0.99975;
-    private double pre_bias_h = 0.00001, cur_bias_h = 0.00001;
+    private double pre_sf_h = 0.9999, cur_sf_h = 0.9999;
+    private double pre_bias_h = 0, cur_bias_h = 0;
 
     private double pre_pos_e = 0, cur_pos_e = 0;
     private double pre_pos_n = 0, cur_pos_n = 0;
     private double pre_speed = 0, cur_speed = 0;
     private double pre_sf = 1.2, cur_sf = 1.2;
-    private double pre_bias = 0.0001, cur_bias = 0.0001;
+    private double pre_bias = 0.405, cur_bias = 0.405;
 
-    private int THREAD_TIME = 100; //ms
+    //private int THREAD_TIME = 100; //ms
+    private int THREAD_TIME = 50;
     private double dt_sensor = THREAD_TIME * 1e-3;
     private double RtoD = 180 / Math.PI;
     private double DtoR = Math.PI / 180;
@@ -188,16 +185,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private double ALPHA_PRESSURE = 1 / 5.255;
     private double BETA_PRESSURE = 44330;
     private double WINDOW_PRESSURE = 300;
+    private int h_idx = 0;
     private int C_WINDOW = 1;
     private int WINDOW_SLOPE = 600;
     private int WINDOW_VARIANCE = 20;
     private int WINDOW_HEADING = 2;
+    private int WINDOW_SPEED = 4;
+    private int SIZE_HEADING = 10;
     private int WINDOW_SF_BIAS = 10;
-    private double THRESHOLD_VARIANCE = 0.02;
+    //private double THRESHOLD_VARIANCE = 0.08;
+    private double THRESHOLD_VARIANCE = 0.038;
 
     private int dataIndex_pressure = 1;
     private int dataIndex_variance = 1;
     private int dataIndex_heading = 1;
+    private int dataIndex_speed = 1;
     private int dataIndex_slope = 1;
     private int dataIndex_sf_bias = 1;
 
@@ -213,7 +215,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private double stack_acc[] = new double[WINDOW_SLOPE];
     private double stack_spd[] = new double[WINDOW_SLOPE];
     private double stack_tic[] = new double[WINDOW_SLOPE];
-    private double averagePressure, averageHeading, pre_heading_meas;
+    private double stack_heading[] = new double[SIZE_HEADING];
+    private double averagePressure, averageHeading, averageSpeed, pre_heading_meas;
     private double averageSf_h = 0, averageBias_h = 0, averageSf = 0, averageBias = 0;
 
     private double[] Ref_xyz = {0, 0, 0};
@@ -232,7 +235,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     double[] save_llh = {0, 0, 0};
     double save_spd = 0;
     double save_hding = 0;
-
+    double save_var = 0;
 
     double ins_cur_heading = 0;
     double heading_stack = 0;
@@ -259,6 +262,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private double G_in = 0, G_out = 0, T_in = 0, T_out = 0, S_in = 0, S_out = 0, D_in = 0, D_out = 0;
     private double Time = 0;
 
+    private int map_rotation_count = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -273,16 +277,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //----------Map--------//
 
         //----------TextView--------//
-//        txtGPSLocation = (TextView) findViewById(R.id.tv_GpsLocation);
-//        txtLocationAcc = (TextView) findViewById(R.id.tv_LocationAcc);
+        txtGPSLocation = (TextView) findViewById(R.id.tv_GpsLocation);
+        txtGPSINSLocation = (TextView) findViewById(R.id.tv_GpsInsLocation);
         txtMode = (TextView) findViewById(R.id.toolbar_mode); //현재 모드 보여주기
-/*        txtGPSINSLocation = (TextView) findViewById(R.id.tv_GpsInsLocation);
-        txtHeading = (TextView) findViewById(R.id.tv_Heading);
-        txtHeading_GPS = (TextView) findViewById(R.id.tv_HeadingGPS);
         txtSpeed = (TextView) findViewById(R.id.tv_Speed);
-        txtSf = (TextView) findViewById(R.id.tv_Sf);
-        txtSlope = (TextView) findViewById(R.id.tv_Slope);
-        txtSearch = (TextView) findViewById(R.id.tv_search);*/
         //----------TextView--------//
 
         //----------Toolbar--------//
@@ -361,7 +359,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 int satellitecount = status.getSatelliteCount();
                 int used_satellitecount = 0;
                 int cno25_count = 0;
-                float cno25_sum = 0;
                 float totalSnr = 0;
 
                 double alpa = 0.45, beta = 0.3, gamma = 0.25;
@@ -455,39 +452,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         };
 
-       /* btnSearch.setOnClickListener(new Button.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (SearchMarker != null) SearchMarker.remove();
-
-                String str_search = txtSearch.getText().toString();
-                if (!str_search.equals("")) {
-                    List<Address> addressList = null;
-                    try {
-                        // editText에 입력한 텍스트(주소, 지역, 장소 등)을 지오 코딩을 이용해 변환
-                        addressList = geocoder.getFromLocationName(str_search, 10);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    String[] splitStr = addressList.get(0).toString().split(",");
-                    String address = splitStr[0].substring(splitStr[0].indexOf("\"") + 1, splitStr[0].length() - 2); // 주소
-                    String latitude = splitStr[10].substring(splitStr[10].indexOf("=") + 1); // 위도
-                    String longitude = splitStr[12].substring(splitStr[12].indexOf("=") + 1); // 경도
-
-                    LatLng SearchPoint = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
-                    MarkerOptions SearchMarkerOptions = new MarkerOptions();
-                    SearchMarkerOptions.title("search result");
-                    SearchMarkerOptions.snippet(address);
-                    SearchMarkerOptions.position(SearchPoint);
-
-                    SearchMarker = mMap.addMarker(SearchMarkerOptions);
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(SearchPoint, ZoomLevel));
-                } else
-                    Toast.makeText(getApplicationContext(), "검색 위치를 입력해주세요", Toast.LENGTH_LONG).show();
-
-            }
-        });*/
-
         mPositionButton.setOnClickListener(new View.OnClickListener() { //현재 위치로 돌아오는 버튼
             @Override
             public void onClick(View v) {
@@ -529,8 +493,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
         }
 
-
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+
 
         lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER); //GPS 위치제공자
         if (lastKnownLocation != null) {
@@ -547,8 +511,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             LastPosition = new LatLng(lat, lng);
 
             pre_x_h[0] = heading * DtoR;
-            preLoc = lastKnownLocation;
-            curLoc = lastKnownLocation;
+//            preLoc = lastKnownLocation;
+//            curLoc = lastKnownLocation;
         } else {
             MIN_accuracy = 10;
         }
@@ -686,8 +650,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        geocoder = new Geocoder(this);
-        Log.d(TAG, "onMapReady()");
+        //geocoder = new Geocoder(this);
         // Add a marker in Sydney and move the camera
 
         setDefaultLocation();
@@ -704,7 +667,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onMapLongClick(LatLng latLng) {
                 Toast.makeText(MapsActivity.this, "Point 저장", Toast.LENGTH_LONG).show();
-                //if (save_mode) WriteTextFile(foldername, filename, "Point" + "\n");
             }
         });
     }
@@ -738,7 +700,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         double gyroY_tr = 0;
         double press_tr = 0;
 
-        //double[] cur_llh = {location.getLatitude()*DtoR, location.getLongitude()*DtoR, location.getAltitude()};
 
         accZ_tr = mLastAccelerometer[2];
         gyroY_tr = mLastGyroscope[1];
@@ -749,8 +710,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (location == null) return;
 
         if (location.getProvider().equals(LocationManager.GPS_PROVIDER)) {
-            //txtLocationAcc.setText("Location Acc : " + location.getAccuracy());
-            //Log.d(TAG, "onLocationChanged_GPS");
 
             GPS_lat = location.getLatitude();
             GPS_lon = location.getLongitude();
@@ -758,45 +717,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             GPS_speed = location.getSpeed();
             GPS_heading = location.getBearing();
             Time = location.getTime();
-            //isBetterLocation(location);
-            //heading_meas = GPS_heading * DtoR;
-
-           /* double diff_heading = heading_meas - heading_stack;
-
-            while (Math.abs(diff_heading) > PI) {
-                if (diff_heading > 0) {
-                    heading_meas = heading_meas - (2 * PI);
-                } else {
-                    heading_meas = heading_meas + (2 * PI);
-                }
-                diff_heading = heading_meas - heading_stack;
-            }
-
-            double dH = heading_meas - pre_averageHeading;
-            double alpa = 0.25;
-            if ( mode == 1)
-            {
-               final_dH = dH * alpa + cur_gyro_y * (1-alpa);
-                final_H = pre_averageHeading + final_dH;
-            }
-
-            if (save_mode) {
-                // File Write
-                String seperator = ",";
-                String dataStr = heading_meas* RtoD + seperator + pre_averageHeading * RtoD + seperator + final_H * RtoD + seperator + cur_gyro_y * RtoD + seperator + mode;
-                wrtieToFile(dataStr);
-            }
-
-            heading_stack = heading_meas;
-            pre_averageHeading = heading_meas;
-*/
 
             GPS_setCurrentLocation(GPS_lat, GPS_lon, GPS_heading);//초록색마커로 gps 위치 찍음
-            /*if (save_mode) {
-                String seperator = ",";
-                String str = "GPS" + seperator + System.currentTimeMillis() + seperator + GPS_lat + seperator + GPS_lon + seperator + GPS_heading + seperator + GPS_speed + seperator + mode;
-                wrtieToFile(str);
-            }*/
 
             if (modeAuto) {
                 headingFilter_flag = true;
@@ -808,7 +730,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
                 if (accposFilter_flag) {
-                    //Log.i("Flag","Filter flag true");
                     if (acc_var[WINDOW_VARIANCE - 1] < THRESHOLD_VARIANCE) {
                         cur_x_h[0] = pre_x_h[0];
                         cur_x_h[1] = pre_x_h[1];
@@ -823,25 +744,49 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     } //else {
                     if (preLoc != null) {
-                        //double heading_meas = CalBearing(curLoc, preLoc);
-                        double heading_meas = curLoc.getBearing() * DtoR;
-                        double diff_heading = heading_meas - heading_stack;  //의문점   heading_meas - heading_stack
 
-                        while (Math.abs(diff_heading) > PI) {
-                            if (diff_heading > 0) {
-                                heading_meas = heading_meas - (2 * PI);
-                            } else {
-                                heading_meas = heading_meas + (2 * PI);
+                        heading_meas = curLoc.getBearing() * DtoR;
+                        if(h_idx == 0) {
+                            stack_heading[0] = heading_meas;
+                            heading_stack = stack_heading[0];
+
+                        } else if (h_idx < SIZE_HEADING) {
+
+                            stack_heading[h_idx] = heading_meas;
+                            double diff_heading = stack_heading[h_idx] - stack_heading[h_idx-1];
+                            while (Math.abs(diff_heading) > PI) {
+                                if (diff_heading > 0) {
+                                    stack_heading[h_idx] = stack_heading[h_idx] - (2 * PI);
+                                } else {
+                                    stack_heading[h_idx] = stack_heading[h_idx] + (2 * PI);
+                                }
+                                diff_heading = stack_heading[h_idx] - stack_heading[h_idx-1];
                             }
-                            diff_heading = heading_meas - heading_stack;
+
+                            heading_stack = stack_heading[h_idx];
+                        } else {
+
+                            System.arraycopy(stack_heading, 1, stack_heading, 0, SIZE_HEADING - 1);
+                            stack_heading[SIZE_HEADING-1] = heading_meas;
+
+                            double diff_heading = stack_heading[SIZE_HEADING-1] - stack_heading[SIZE_HEADING-2];
+                            while (Math.abs(diff_heading) > PI) {
+                                if (diff_heading > 0) {
+                                    stack_heading[SIZE_HEADING-1] = stack_heading[SIZE_HEADING-1] - (2 * PI);
+                                } else {
+                                    stack_heading[SIZE_HEADING-1] = stack_heading[SIZE_HEADING-1] + (2 * PI);
+                                }
+                                diff_heading = stack_heading[SIZE_HEADING-1] - stack_heading[SIZE_HEADING-2];
+                            }
+                            heading_stack = stack_heading[SIZE_HEADING-1];
                         }
-                        heading_stack = heading_meas;
+                        h_idx++;
 
                         //double heading_meas = CalBearing(curLoc, preLoc);
                         average_Heading_Process(heading_stack);
 
-                        //cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, averageHeading, headingFilter_flag);
-                        cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, heading_stack, headingFilter_flag);
+                        cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, averageHeading, headingFilter_flag);
+                        //cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, heading_stack, headingFilter_flag);
                         heading_stack = cur_x_h[0];
 
                         cur_x = apFilter.cal_AccPos(pre_x, accZ_tr, dt_sensor, update_mode, cur_x_h[0], sin_theta, preLoc, curLoc, accposFilter_flag);
@@ -863,9 +808,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         cur_x[3] = 1 / averageSf;
                         cur_x[4] = averageBias / averageSf;
 
-                        //Log.i("ENU",cur_x[0] + " , " + cur_x[1] + " , " + cur_x[2] + " , " + cur_x[3] + " , " + cur_x[4]);
+                        if (save_mode) {
+                            // File Write
+                            String seperator = ",";
+                            Date date = new Date();
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+                            dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                            String dateStr = dateFormat.format(date);
+
+                            String dataStrYaw = "MEAS" + seperator + dateStr + seperator + System.currentTimeMillis() + seperator + heading_meas +
+                                    seperator + heading_stack + seperator + averageHeading + seperator + save_var;
+                            wrtieToFile(dataStrYaw);
+
+                        }
                     }
-                    //}
 
                     map_heading = averageHeading;
                     if (averageHeading > (2 * PI)) {
@@ -874,28 +830,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         map_heading = averageHeading % (-2 * PI);
                     }
 
-            /*        if (save_mode) {
-                        String seperator = ",";
-                        String str = "GPSINS" + seperator + System.currentTimeMillis() + seperator + curLoc.getLatitude() + seperator + curLoc.getLongitude() + seperator
-                                + map_heading * RtoD + seperator + curLoc.getSpeed() + seperator + mode;
-                        wrtieToFile(str);
-                    }*/
-
-                    /*map_heading = averageHeading;
-                    if (averageHeading > (2 * PI)) {
-                        map_heading = averageHeading % (2 * PI);
-                    } else if (averageHeading < (-2 * PI)) {
-                        map_heading = averageHeading % (-2 * PI);
-                    }*/
-
-
                     System.arraycopy(cur_x_h, 0, pre_x_h, 0, 3);
                     System.arraycopy(cur_x, 0, pre_x, 0, 5);
 
                     pre_x[0] = 0;
                     pre_x[1] = 0;
-                    //cur_x[0] = 0;
-                    //cur_x[1] = 0;
 
                     headingFilter_flag = false;
                     accposFilter_flag = false;
@@ -906,10 +845,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 //                isBetterLocation(cur_GPS_Location); //모드 체인지
 
                 if (mode == 1) {
-                    //txtGPSINSLocation.setText("GPS/INS Location : " + Double.toString(lat) + "," + Double.toString(lng));
-                    //txtGPSINSLocation.setText("GPS/INS Location : " + cur_llh[0] * RtoD + "," + cur_llh[1] * RtoD);
-                    //onMapPosition(cur_GPS_Location, mode);
-                    //onMapPosition(GPS_lat, GPS_lon, GPS_heading, mode);
+                    double GPS_lat = curLoc.getLatitude(); String lat_str = String.format("%.6f",GPS_lat);
+                    double GPS_lon = curLoc.getLongitude(); String lon_str = String.format("%.6f",GPS_lon);
+                    txtGPSLocation.setText("GPS Location : " + lat_str + "," + lon_str);
+
+                    double GPSINS_lat = cur_llh[0] * RtoD; String lat_str2 = String.format("%.6f",GPSINS_lat);
+                    double GPSINS_lon = cur_llh[1] * RtoD; String lon_str2 = String.format("%.6f",GPSINS_lon);
+                    txtGPSINSLocation.setText("GPS/INS Location : " + lat_str2 + " , " + lon_str2);
+
                     onMapPosition(cur_llh[0] * RtoD, cur_llh[1] * RtoD, (map_heading * RtoD), mode);
                     Ref_GPS_Location = cur_GPS_Location;  //마지막 위치 저장
                     Last_Map_angle = Map_angle; //마지막 각도 저장
@@ -920,15 +863,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     //onMapPosition(cur_GPS_Location, mode);
                     Ref_GPS_Location = cur_GPS_Location;  //마지막 위치,각도 저장
                     Last_Map_angle = Map_angle;
-                    //txtGPSLocation.setText("GPS Location : " + curLoc.getLatitude() + "," + curLoc.getLongitude());
+
+                    double GPS_lat = curLoc.getLatitude(); String lat_str = String.format("%.6f",GPS_lat);
+                    double GPS_lon = curLoc.getLongitude(); String lon_str = String.format("%.6f",GPS_lon);
+                    txtGPSLocation.setText("GPS Location : " + lat_str + "," + lon_str);
                 }
             }
-
-            //Log.i("Filter heading", pre_x_h[0] + " , " + pre_x_h[1] + " , " + pre_x_h[2]);
-            //Log.i("Filter heading", cur_x_h[0] + " , " + cur_x_h[1] + " , " + cur_x_h[2]);
-
-            //Log.i("Filter acc", pre_x[0] + " , " + pre_x[1] + " , " + pre_x[2] + " , " + (1 / pre_x[3]) + " , " + (pre_x[4] / pre_x[3]));
-            //Log.i("Filter acc", cur_x[0] + " , " + cur_x[1] + " , " + cur_x[2] + " , " + (1 / cur_x[3]) + " , " + (cur_x[4] / cur_x[3]));
 
         }
     }
@@ -944,17 +884,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setCurrentLocation(currentPosition, markerTitle, markerSnippet, mode, Map_angle);
     }
 
-    /*public void onMapPosition(Location location,int mode)
-    {
-        Log.d(TAG, "onMapPosition");
-        currentPosition = new LatLng(location.getLatitude(),location.getLongitude());
-        Map_angle = location.getBearing();  //마커 회전을 위한 각도 (도 단위) 북을 기준 반시계가 양수
-        Log.d(TAG, "onMapPosition : " + "cur : " + String.valueOf(currentPosition) + "pre : " + String.valueOf(prePosition));
-
-        String markerTitle = "MODE_" + String.valueOf(mode);
-        String markerSnippet = "위도:" + String.valueOf(location.getLatitude()) + " 경도:" + String.valueOf(location.getLongitude());
-        setCurrentLocation(currentPosition,markerTitle,markerSnippet,mode,Map_angle);
-    }*/
 
     public double CalBearing(Location curPos, Location prePos) {
         double angle = 0;
@@ -1119,7 +1048,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
 
             //if (accuracyData <= 0) mode = 2; //INS Mode
-            //Log.d(TAG, "isBetterLocation() mode : " + mode + "accuracy : " + accuracyData + "time : " + currentLocation.getTime());
             pre_location_time = cur_location_time;
         }
     }
@@ -1128,16 +1056,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor == mAccelerometer) {
             System.arraycopy(event.values, 0, mLastAccelerometer, 0, event.values.length);
-            variance_Acceleration_Process(mLastAccelerometer);
-            //Log.i("VARIANCE",String.valueOf(acc_var[19]));
         } else if (event.sensor == mGyroscope) {
             System.arraycopy(event.values, 0, mLastGyroscope, 0, event.values.length);
         } else if (event.sensor == mPressure) {
             mLastPressure = event.values[0];
-            average_Pressure_Process(mLastPressure);
-            //(double sin_theta_old, double[] stack_acc, double[] stack_alt, double[] stack_spd, double[] stack_tic, double accZ, double altitude, double spd, int C_WINDOW, int M_WINDOW, double tic)
-            //slopeCalculation.cal_Slope();
-            //txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
         }
     }
 
@@ -1161,6 +1083,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             averageHeading = (averageHeading * (WINDOW_HEADING - 1) / WINDOW_HEADING) + (heading / WINDOW_HEADING);
         }
         dataIndex_heading++;
+    }
+
+    private void average_Speed_Process(double speed) {
+        if (dataIndex_speed == 1) {
+            averageSpeed = speed;
+        } else if (dataIndex_speed < WINDOW_SPEED) {
+            averageSpeed = (averageSpeed * (dataIndex_speed - 1) / dataIndex_speed) + (speed / dataIndex_speed);
+        } else {
+            averageSpeed = (averageSpeed * (WINDOW_SPEED - 1) / WINDOW_SPEED) + (speed / WINDOW_SPEED);
+        }
+        dataIndex_speed++;
     }
 
     private void average_sf_bias_Process(double Sf_h, double Bias_h, double Sf, double Bias) {
@@ -1189,15 +1122,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (dataIndex_variance == 1) {
             acc_norm[0] = acc_xyz_norm;
             acc_var[0] = 0;
+
+            save_var = acc_var[0];
         } else if (dataIndex_variance <= WINDOW_VARIANCE) {
             acc_norm[dataIndex_variance - 1] = acc_xyz_norm;
             double acc_mat[] = new double[dataIndex_variance];
             System.arraycopy(acc_norm, 0, acc_mat, 0, dataIndex_variance);
             acc_var[dataIndex_variance - 1] = Matrix.variance(acc_mat, dataIndex_variance);
+
+            save_var = acc_var[dataIndex_variance-1];
         } else {
             System.arraycopy(acc_norm, 1, acc_norm, 0, WINDOW_VARIANCE - 1);
             acc_norm[WINDOW_VARIANCE - 1] = acc_xyz_norm;
             acc_var[WINDOW_VARIANCE - 1] = Matrix.variance(acc_norm, WINDOW_VARIANCE);
+
+            save_var = acc_var[WINDOW_VARIANCE-1];
         }
         //Log.i("VARIANCE","VAR : " + acc_var[WINDOW_VARIANCE - 1]);
         dataIndex_variance++;
@@ -1213,7 +1152,6 @@ class BackRunnable implements Runnable {
 
     double accX, accY, accZ  = 0;
     double gyroX, gyroY, gyroZ = 0;
-    double lat, lon, alt, spd, hding = 0;
     double save_var, save_sin_theta, save_sf, save_bias = 0;
 
     double accZ_tr = 0;
@@ -1240,12 +1178,14 @@ class BackRunnable implements Runnable {
 
             accZ_tr = mLastAccelerometer[2];
             gyroY_tr = mLastGyroscope[1];
-            //press_tr = mLastPressure;
-            //press_tr = averagePressure;
+
             int update_mode = mode;
 
+            variance_Acceleration_Process(mLastAccelerometer);
+            average_Pressure_Process(press_tr);
+
             // SLOPE CALCULATION
-            double temp_alt = 1 - Math.pow((press_tr / INITIAL_PRESSURE), ALPHA_PRESSURE);
+            double temp_alt = 1 - Math.pow((averagePressure / INITIAL_PRESSURE), ALPHA_PRESSURE);
             altitude = INITIAL_HEIGHT + (BETA_PRESSURE * temp_alt);
 
             double slope_spd = pre_x[2];
@@ -1273,29 +1213,23 @@ class BackRunnable implements Runnable {
                 stack_tic[WINDOW_SLOPE - 1] = dt_sensor;
             }
             dataIndex_slope++;
-            //Log.i("ALT",String.valueOf(C_WINDOW));
-            //Log.i("ALT",String.valueOf(altitude));
-            //Log.i("ALT",String.valueOf(sin_theta));
 
             //(double sin_theta_old, double[] stack_acc, double[] stack_alt, double[] stack_spd, double[] stack_tic, double accZ, double altitude, double spd, int C_WINDOW, int M_WINDOW, double tic)
             slopeOut = slopeCalculation.cal_Slope(sin_theta_old, stack_acc, stack_alt, stack_spd, stack_tic, accZ_tr, altitude, slope_spd, C_WINDOW, WINDOW_SLOPE, dt_sensor);
             sin_theta = slopeOut[0];
             C_WINDOW = (int) slopeOut[1];
 
-            if (Math.abs(sin_theta) > 0.4) {
+            if (Math.abs(sin_theta) > 0.1) {
                 sin_theta = sin_theta_old;
             }
             sin_theta_old = sin_theta;
-            //txtPress.setText("Pressure : " + String.valueOf(event.values[0]));
 
 
             if (preLoc != null) {
-                //Log.e("Flag","Filter flag false");
-                //double heading_meas = preLoc.getBearing();
 
                 if (!accposFilter_flag) {
-                    //cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, averageHeading, headingFilter_flag);
-                    cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, heading_stack, headingFilter_flag);
+                    cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, averageHeading, headingFilter_flag);
+                    //cur_x_h = hFilter.cal_Heading(pre_x_h, gyroY_tr, dt_sensor, update_mode, heading_stack, headingFilter_flag);
                     cur_x = apFilter.cal_AccPos(pre_x, accZ_tr, dt_sensor, update_mode, cur_x_h[0], sin_theta, preLoc, curLoc, accposFilter_flag);
                 }
 
@@ -1320,6 +1254,7 @@ class BackRunnable implements Runnable {
                 System.arraycopy(cur_x, 0, pre_x, 0, 5);
 
                 ins_cur_heading = cur_x_h[0];
+
                 save_llh[0] = ins_cur_llh[0]; save_llh[1] = ins_cur_llh[1]; save_llh[2] = ins_cur_llh[2];
                 save_spd = cur_x[2];
                 save_hding = ins_cur_heading;
@@ -1341,17 +1276,18 @@ class BackRunnable implements Runnable {
 
             // OR 문 사용해서 AUTO & INS 모드일때 맵에 찍어주기
 
-            //Log.i("ANGLE", String.valueOf(cur_x_h[0]*RtoD));
-
             handler.post(new Runnable() {
                 @Override
                 public void run() {
                     // TextView
-              /*          txtGPSINSLocation.setText("GPS/INS Location : " + ins_cur_llh[0] * RtoD + "," + ins_cur_llh[1] * RtoD);
-                        txtHeading.setText("Heading : " + map_heading * RtoD);
-                        txtSpeed.setText("Speed : " + cur_x[2]);
-                        txtSf.setText("Scale-factor : " + averageSf_h + " , " + averageSf);
-                        txtSlope.setText("Sin(theta) : " + sin_theta);*/
+                    double GPSINS_lat = ins_cur_llh[0] * RtoD; String lat_str = String.format("%.6f",GPSINS_lat);
+                    double GPSINS_lon = ins_cur_llh[1] * RtoD; String lon_str = String.format("%.6f",GPSINS_lon);
+                    txtGPSINSLocation.setText("GPS/INS Location : " + lat_str + " , " + lon_str);
+
+                    double speed_ms = cur_x[2];
+                    double speed_kmh = speed_ms*3.6;
+                    average_Speed_Process(speed_kmh);
+                    txtSpeed.setText(averageSpeed + " km/h");
                 }
             });
 
@@ -1370,15 +1306,19 @@ class BackRunnable implements Runnable {
                 String dateStr = dateFormat.format(date);
 
                 String dataStr = "DATA" + seperator + dateStr + seperator + System.currentTimeMillis() + seperator + accX + seperator + accY + seperator + accZ + seperator
-                        + gyroX + seperator + gyroY + seperator + gyroZ + seperator + press_tr + seperator + lat + seperator + lon + seperator + alt + seperator
-                        + spd + seperator + hding + seperator + save_llh[0] + seperator + save_llh[1] + seperator + save_llh[2] + seperator + save_spd + seperator + save_hding + seperator
-                        + save_var + seperator + save_sin_theta + seperator + save_sf + seperator + save_bias + seperator + mode;
-
-                //String dataStr = cur_x[0] + seperator + cur_x[1] + seperator + cur_x_h[0] + seperator + heading_stack + seperator + averageHeading + seperator + map_heading + seperator +
-                //        altitude + seperator + averageSf_h + seperator + averageBias_h + seperator + averageSf + seperator + averageBias + seperator + sin_theta;
+                        + gyroX + seperator + gyroY + seperator + gyroZ + seperator + press_tr + seperator + GPS_lat + seperator + GPS_lon + seperator + GPS_alt + seperator
+                        + GPS_speed + seperator + GPS_heading + seperator + save_llh[0] + seperator + save_llh[1] + seperator + save_llh[2] + seperator + save_spd + seperator
+                        + save_hding + seperator + save_var + seperator + altitude + seperator + save_sin_theta + seperator + save_sf + seperator + save_bias + seperator + mode;
                 wrtieToFile(dataStr);
 
+                String dataStrYaw = "Time" + seperator + dateStr + seperator + System.currentTimeMillis() + seperator + heading_meas +
+                        seperator + heading_stack + seperator + averageHeading + seperator + save_hding + seperator + averagePressure +
+                        seperator + altitude + seperator + save_var;
+                wrtieToFile(dataStrYaw);
+
             }
+
+
         } //end while
     } // end run()
 } // end class Runnable

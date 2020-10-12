@@ -11,18 +11,11 @@
         <RelativeLayout
             android:id="@+id/RL_map"
             android:layout_width="match_parent"
-            android:layout_height="530dp"
+            android:layout_height="match_parent"
+            android:layout_above="@+id/LL_data"
             android:orientation="vertical">
 
-            <fragment
-                android:id="@+id/map"
-                android:name="com.google.android.gms.maps.SupportMapFragment"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_alignParentBottom="true"
-                tools:context=".MapsActivity" />
-
-           <!-- <LinearLayout
+            <!-- <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
@@ -45,6 +38,15 @@
 
             </LinearLayout>
 -->
+            <fragment
+                android:id="@+id/map"
+                android:name="com.google.android.gms.maps.SupportMapFragment"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_alignParentBottom="true"
+                android:layout_marginBottom="1dp"
+                tools:context=".MapsActivity" />
+
             <ImageButton
                 android:id="@+id/btn_save"
                 android:layout_width="40dp"
@@ -88,6 +90,18 @@
                 android:textSize="24sp"
                 />
 
+            <TextView
+                android:id="@+id/tv_Speed"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_marginStart="20dp"
+                android:layout_marginLeft="22dp"
+                android:layout_marginTop="470dp"
+                android:background="#FFFFFF"
+                android:text="0"
+                android:textSize="30sp"
+                android:gravity="center" />
+
 
         </RelativeLayout>
 
@@ -95,22 +109,24 @@
         android:id="@+id/LL_data"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/RL_map"
+        android:layout_above="@id/tool_menu"
         android:orientation="vertical">
 
         <TextView
             android:id="@+id/tv_GpsLocation"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="GPS Location : " />
+            android:text="GPS Location : "
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/tv_GpsInsLocation"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="GPS/INS Location : " />
+            android:text="GPS/INS Location : "
+            android:textSize="18sp" />
 
-        <TextView
+      <!--  <TextView
             android:id="@+id/tv_LocationAcc"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -149,15 +165,21 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="" />
+            android:text="" />-->
 
 
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/tool_menu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true">
+
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_below="@id/LL_data"
         android:background="#5DA4BE"
         android:minHeight="?attr/actionBarSize"
@@ -182,6 +204,6 @@
             android:textSize="20sp" />
 
     </androidx.appcompat.widget.Toolbar>
-
+    </LinearLayout>
 
 </RelativeLayout>
